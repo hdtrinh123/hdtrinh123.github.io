@@ -3,15 +3,21 @@
   <head>
     <title>Henry CAN code</title>
     <style>
-      #rcorners1 {
+      .card {
         border-radius: 25px;
-        background: #298ef4;
+        background: white;
         padding: 20px; 
         width: 200px;
-        height: 150px;  
+        height: 150px;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.3)
+      }
+      .card-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
       }
       body {
-      font-family: Arial, sans-serif;
+      font-family: 'Trebuchet MS', Roboto;
       background: linear-gradient(to bottom right, #dbeafe, #a5b4fc);
       background-attachment: fixed;
       background-repeat: no-repeat;
@@ -20,7 +26,10 @@
     </style>
   </head>
   <body>
-    <h1>Beleive it or not, i can code.</h1>
-    <p id="rcorners1">See? I made this.</p>
+    <h1>some stuff</h1>
+    <div class="card-container">
+      <div class="card">Check out the gallery</div>
+      <div class="card">its a second card and it looks pretty cool</div>
+    </div>
   </body>
 </html>
