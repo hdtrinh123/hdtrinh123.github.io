@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer World</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Join Screen -->
+    <div id="join-screen">
+        <div class="join-box">
+            <h1>Multiplayer World</h1>
+            <p>Collect materials with other players in real-time</p>
+            <input type="text" id="username-input" placeholder="Enter your name" maxlength="16">
+            <button id="join-btn">Join World</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden">
+        <!-- Header -->
+        <header id="header">
+            <div class="header-left">
+                <a href="/home" class="back-link">← Back</a>
+                <span class="player-count"><span id="player-count">0</span> online</span>
+            </div>
+            <div class="header-center">
+                <span id="player-name">Player</span>
+            </div>
+            <div class="header-right">
+                <button id="inventory-toggle">Inventory</button>
+            </div>
+        </header>
+
+        <!-- World Canvas -->
+        <canvas id="world-canvas"></canvas>
+
+        <!-- Inventory Panel -->
+        <div id="inventory-panel" class="hidden">
+            <h3>Inventory</h3>
+            <div id="inventory-items">
+                <div class="inv-item" data-type="stone">
+                    <div class="inv-icon stone"></div>
+                    <span class="inv-count" id="inv-stone">0</span>
+                </div>
+                <div class="inv-item" data-type="wood">
+                    <div class="inv-icon wood"></div>
+                    <span class="inv-count" id="inv-wood">0</span>
+                </div>
+                <div class="inv-item" data-type="metal">
+                    <div class="inv-icon metal"></div>
+                    <span class="inv-count" id="inv-metal">0</span>
+                </div>
+                <div class="inv-item" data-type="crystal">
+                    <div class="inv-icon crystal"></div>
+                    <span class="inv-count" id="inv-crystal">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Collection Popup -->
+        <div id="collect-popup" class="hidden">
+            +1 <span id="collect-type"></span>
+        </div>
+
+        <!-- Instructions -->
+        <div id="instructions">
+            Click materials to collect them. Drag to pan the world.
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <script src="config.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
