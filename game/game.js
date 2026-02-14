@@ -38,10 +38,11 @@ let armAngle = 0;
 // Helpers
 // ============================================
 function getUserId() {
-    let id = localStorage.getItem('physics_userId');
+    // Use sessionStorage so each tab gets its own unique ID
+    let id = sessionStorage.getItem('physics_userId');
     if (!id) {
-        id = 'u_' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('physics_userId', id);
+        id = 'u_' + Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 4);
+        sessionStorage.setItem('physics_userId', id);
     }
     return id;
 }
