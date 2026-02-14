@@ -17,24 +17,33 @@ const WORLD = {
     viewWidth: 900
 };
 
+// Ragdoll body sizes
+const RAG = {
+    head: 11,
+    torso: 15,
+    arm: 7,
+    leg: 8
+};
+
 // Physics tuning
 const PHYSICS = {
-    playerRadius: 22,
-    moveForce: 0.004,
-    jumpSpeed: 10,
-    maxSpeed: 7,
-    friction: 0.5,
-    restitution: 0.4,
-    airFriction: 0.015,
+    moveForce: 0.003,
+    jumpSpeed: 8,
+    maxSpeed: 6,
+    coyoteFrames: 8,
+    armForce: 0.0006,
+    armMax: 0.005,
+    legForce: 0.0002,
     grabDragForce: 0.00035,
     grabMaxForce: 0.008,
-    grabReach: 80,
-    grabBreakDist: 200,
-    coyoteFrames: 8
+    grabReach: 55,
+    grabBreakDist: 180,
+    remoteSpring: 0.003,
+    remoteDamp: 0.85
 };
 
 // Sync
-const SYNC_RATE = 50; // ms between broadcasts
+const SYNC_RATE = 50;
 
 // Player colors
 const PLAYER_COLORS = [
