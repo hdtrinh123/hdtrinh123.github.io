@@ -89,7 +89,7 @@ function joinGame() {
 // Physics World
 // ============================================
 function initPhysics() {
-    engine = Engine.create({ gravity: { x: 0, y: 0.9 } });
+    engine = Engine.create({ gravity: { x: 0, y: 0.4 } });
     mWorld = engine.world;
 }
 
@@ -141,12 +141,12 @@ function createLocalPlayer() {
         frictionAir: 0.015, collisionFilter: cf
     });
     pLeg1 = Bodies.circle(x - 6, y + 25, RAG.leg, {
-        density: 0.001, friction: 0.9, restitution: 0.1,
-        frictionAir: 0.015, collisionFilter: cf
+        density: 0.0004, friction: 0.9, restitution: 0.1,
+        frictionAir: 0.03, collisionFilter: cf
     });
     pLeg2 = Bodies.circle(x + 6, y + 25, RAG.leg, {
-        density: 0.001, friction: 0.9, restitution: 0.1,
-        frictionAir: 0.015, collisionFilter: cf
+        density: 0.0004, friction: 0.9, restitution: 0.1,
+        frictionAir: 0.03, collisionFilter: cf
     });
 
     const neck = Constraint.create({
@@ -198,6 +198,8 @@ function updateRemoteBodies() {
             remoteBodies[id] = body;
         }
         const body = remoteBodies[id];
+        // Disable collision with players we're grabbing (prevents momentum loop)
+        body.isSensor = (grabTarget === id);
         const dx = p.dx - body.position.x;
         const dy = p.dy - body.position.y;
         Body.applyForce(body, body.position, {

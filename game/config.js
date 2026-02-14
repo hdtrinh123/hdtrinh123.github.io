@@ -27,13 +27,13 @@ const RAG = {
 
 // Physics tuning
 const PHYSICS = {
-    moveForce: 0.003,
-    jumpSpeed: 8,
-    maxSpeed: 6,
+    moveForce: 0.002,
+    jumpSpeed: 5,
+    maxSpeed: 5,
     coyoteFrames: 8,
-    legForce: 0.0003,
-    grabDragForce: 0.00035,
-    grabMaxForce: 0.008,
+    legForce: 0.001,
+    grabDragForce: 0.00025,
+    grabMaxForce: 0.005,
     grabReach: 45,
     grabBreakDist: 160,
     remoteSpring: 0.003,
