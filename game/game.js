@@ -1,7 +1,7 @@
 // ============================================
 // Matter.js aliases
 // ============================================
-const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
+const { Engine, Bodies, Body, Composite, Events } = Matter;
 
 // ============================================
 // State
@@ -11,10 +11,8 @@ let engine, mWorld, canvas, ctx;
 let scale = 1;
 let camera = { x: 0, y: 0 };
 
-// Local ragdoll (bird)
-let pHead, pTorso, pLeg1, pLeg2;
-let pGroup;
-
+// Single physics body per player
+let pBody = null;
 let remotePlayers = {};
 let remoteBodies = {};
 let platforms = [];
@@ -99,19 +97,14 @@ function buildWorld() {
         [W/2, H-20, W+100, 40],
         [-20, H/2, 40, H+100], [W+20, H/2, 40, H+100],
         [W/2, -20, W+100, 40],
-        // Tier 1
         [200,1000,220,22],[550,960,180,22],[950,1000,280,22],
         [1400,960,200,22],[1800,1000,240,22],[2200,960,180,22],
-        // Tier 2
         [120,810,180,22],[450,760,220,22],[850,800,200,22],
         [1200,740,260,22],[1600,780,200,22],[2000,800,220,22],[2350,740,160,22],
-        // Tier 3
         [280,580,200,22],[650,530,180,22],[1050,560,200,22],
         [1400,500,240,22],[1780,540,200,22],[2150,520,200,22],
-        // Tier 4
         [150,380,160,22],[500,340,200,22],[900,300,160,22],
         [1250,340,200,22],[1600,310,180,22],[2000,360,180,22],
-        // Tier 5
         [350,170,150,22],[750,130,180,22],[1150,110,160,22],
         [1550,140,180,22],[1950,170,150,22],
     ];
@@ -125,58 +118,21 @@ function buildWorld() {
 }
 
 // ============================================
-// Local Bird Ragdoll
+// Local Player (single body)
 // ============================================
 function createLocalPlayer() {
     const x = WORLD.width / 2, y = WORLD.height - 100;
-    pGroup = Body.nextGroup(true);
-    const cf = { group: pGroup };
+    pBody = Bodies.circle(x, y, RAG.torso, {
+        density: 0.002, friction: 0.5, restitution: 0.3, frictionAir: 0.02
+    });
+    Composite.add(mWorld, pBody);
 
-    pTorso = Bodies.circle(x, y, RAG.torso, {
-        density: 0.003, friction: 0.5, restitution: 0.3,
-        frictionAir: 0.02, collisionFilter: cf
-    });
-    pHead = Bodies.circle(x, y - 24, RAG.head, {
-        density: 0.001, friction: 0.3, restitution: 0.4,
-        frictionAir: 0.015, collisionFilter: cf
-    });
-    pLeg1 = Bodies.circle(x - 6, y + 25, RAG.leg, {
-        density: 0.0004, friction: 0.9, restitution: 0.1,
-        frictionAir: 0.03, collisionFilter: cf
-    });
-    pLeg2 = Bodies.circle(x + 6, y + 25, RAG.leg, {
-        density: 0.0004, friction: 0.9, restitution: 0.1,
-        frictionAir: 0.03, collisionFilter: cf
-    });
-
-    const neck = Constraint.create({
-        bodyA: pTorso, pointA: { x: 0, y: -13 },
-        bodyB: pHead, pointB: { x: 0, y: 9 },
-        stiffness: 0.5, damping: 0.1, length: 3
-    });
-    const hip1 = Constraint.create({
-        bodyA: pTorso, pointA: { x: -6, y: 12 },
-        bodyB: pLeg1, pointB: { x: 0, y: -5 },
-        stiffness: 0.25, damping: 0.08, length: 14
-    });
-    const hip2 = Constraint.create({
-        bodyA: pTorso, pointA: { x: 6, y: 12 },
-        bodyB: pLeg2, pointB: { x: 0, y: -5 },
-        stiffness: 0.25, damping: 0.08, length: 14
-    });
-
-    Composite.add(mWorld, [pTorso, pHead, pLeg1, pLeg2, neck, hip1, hip2]);
-
-    // Ground detection
-    const myParts = new Set([pTorso, pHead, pLeg1, pLeg2]);
     Events.on(engine, 'collisionActive', (event) => {
         for (const pair of event.pairs) {
-            const a = pair.bodyA, b = pair.bodyB;
-            const mine = myParts.has(a) ? a : myParts.has(b) ? b : null;
-            if (!mine) continue;
-            const other = mine === a ? b : a;
-            if (myParts.has(other)) continue;
-            if ((mine === pTorso || mine === pLeg1 || mine === pLeg2) && other.position.y > mine.position.y) {
+            const isMe = pair.bodyA === pBody || pair.bodyB === pBody;
+            if (!isMe) continue;
+            const other = pair.bodyA === pBody ? pair.bodyB : pair.bodyA;
+            if (other.position.y > pBody.position.y) {
                 groundedFrames = PHYSICS.coyoteFrames;
             }
         }
@@ -184,7 +140,7 @@ function createLocalPlayer() {
 }
 
 // ============================================
-// Remote Player Bodies (soft/pushable)
+// Remote Player Bodies
 // ============================================
 function updateRemoteBodies() {
     for (const [id, p] of Object.entries(remotePlayers)) {
@@ -198,7 +154,6 @@ function updateRemoteBodies() {
             remoteBodies[id] = body;
         }
         const body = remoteBodies[id];
-        // Disable collision with players we're grabbing (prevents momentum loop)
         body.isSensor = (grabTarget === id);
         const dx = p.dx - body.position.x;
         const dy = p.dy - body.position.y;
@@ -282,11 +237,8 @@ function setupFirebase() {
             ref.onDisconnect().remove();
             ref.set({
                 name: username, color: userColor,
-                x: pTorso.position.x, y: pTorso.position.y,
-                hx: pHead.position.x, hy: pHead.position.y, ha: 0,
-                l1x: pLeg1.position.x, l1y: pLeg1.position.y,
-                l2x: pLeg2.position.x, l2y: pLeg2.position.y,
-                grab: null, gx: null, gy: null,
+                x: pBody.position.x, y: pBody.position.y,
+                ha: 0, grab: null, gx: null, gy: null,
                 t: firebase.database.ServerValue.TIMESTAMP
             });
         }
@@ -302,11 +254,11 @@ function setupFirebase() {
             const prev = remotePlayers[id];
             next[id] = {
                 ...p,
-                dx:   prev ? prev.dx   : p.x,   dy:   prev ? prev.dy   : p.y,
-                dhx:  prev ? prev.dhx  : (p.hx || p.x),  dhy: prev ? prev.dhy : (p.hy || p.y - 24),
-                dha:  prev ? prev.dha  : (p.ha || 0),
-                dl1x: prev ? prev.dl1x : (p.l1x || p.x - 6), dl1y: prev ? prev.dl1y : (p.l1y || p.y + 25),
-                dl2x: prev ? prev.dl2x : (p.l2x || p.x + 6), dl2y: prev ? prev.dl2y : (p.l2y || p.y + 25),
+                dx: prev ? prev.dx : p.x,
+                dy: prev ? prev.dy : p.y,
+                dha: prev ? prev.dha : (p.ha || 0),
+                walkPhase: prev ? prev.walkPhase : 0,
+                prevDx: prev ? prev.prevDx : p.x,
             };
         }
         remotePlayers = next;
@@ -318,99 +270,107 @@ function syncOut() {
     const now = Date.now();
     if (now - lastSyncTime < SYNC_RATE) return;
     lastSyncTime = now;
-    if (!pTorso || !db) return;
+    if (!pBody || !db) return;
 
     let gx = null, gy = null;
     if (grabTarget) {
-        // Beak tip position
-        gx = Math.round(pHead.position.x + Math.cos(headAngle) * (RAG.head + RAG.beakLen));
-        gy = Math.round(pHead.position.y + Math.sin(headAngle) * (RAG.head + RAG.beakLen));
+        const hx = pBody.position.x;
+        const hy = pBody.position.y - 22;
+        gx = Math.round(hx + Math.cos(headAngle) * (RAG.head + RAG.beakLen));
+        gy = Math.round(hy + Math.sin(headAngle) * (RAG.head + RAG.beakLen));
     }
     db.ref('players/' + userId).update({
-        x:   Math.round(pTorso.position.x), y:   Math.round(pTorso.position.y),
-        hx:  Math.round(pHead.position.x),  hy:  Math.round(pHead.position.y),
-        ha:  Math.round(headAngle * 100) / 100,
-        l1x: Math.round(pLeg1.position.x),  l1y: Math.round(pLeg1.position.y),
-        l2x: Math.round(pLeg2.position.x),  l2y: Math.round(pLeg2.position.y),
+        x: Math.round(pBody.position.x),
+        y: Math.round(pBody.position.y),
+        ha: Math.round(headAngle * 100) / 100,
         grab: grabTarget || null, gx: gx, gy: gy,
         t: firebase.database.ServerValue.TIMESTAMP
     });
 }
 
 // ============================================
+// Visual position helpers
+// ============================================
+function getHeadPos(bx, by) {
+    return { x: bx, y: by - 22 };
+}
+
+function getLegPositions(bx, by, phase) {
+    const swing = Math.sin(phase) * 10;
+    const lift1 = Math.max(0, -Math.sin(phase)) * 5;
+    const lift2 = Math.max(0, Math.sin(phase)) * 5;
+    return {
+        l1x: bx - 7 + swing,
+        l1y: by + 20 - lift1,
+        l2x: bx + 7 - swing,
+        l2y: by + 20 - lift2,
+    };
+}
+
+// ============================================
 // Game Logic
 // ============================================
 function update() {
-    if (!pTorso) return;
-    const pos = pTorso.position;
-    const vel = pTorso.velocity;
+    if (!pBody) return;
+    const pos = pBody.position;
+    const vel = pBody.velocity;
 
-    // Movement (applied to torso)
     const left  = keys['a'] || keys['arrowleft']  || keys['_touchL'];
     const right = keys['d'] || keys['arrowright'] || keys['_touchR'];
     const jump  = keys['w'] || keys['arrowup'] || keys[' '] || keys['_touchJ'];
 
-    if (left)  Body.applyForce(pTorso, pos, { x: -PHYSICS.moveForce, y: 0 });
-    if (right) Body.applyForce(pTorso, pos, { x:  PHYSICS.moveForce, y: 0 });
+    if (left)  Body.applyForce(pBody, pos, { x: -PHYSICS.moveForce, y: 0 });
+    if (right) Body.applyForce(pBody, pos, { x:  PHYSICS.moveForce, y: 0 });
 
     if (Math.abs(vel.x) > PHYSICS.maxSpeed) {
-        Body.setVelocity(pTorso, { x: Math.sign(vel.x) * PHYSICS.maxSpeed, y: vel.y });
+        Body.setVelocity(pBody, { x: Math.sign(vel.x) * PHYSICS.maxSpeed, y: vel.y });
     }
 
     if (jump && groundedFrames > 0) {
-        Body.setVelocity(pTorso, { x: vel.x, y: -PHYSICS.jumpSpeed });
+        Body.setVelocity(pBody, { x: vel.x, y: -PHYSICS.jumpSpeed });
         groundedFrames = 0;
         spawnParticles(pos.x, pos.y + RAG.torso, 6, -1);
     }
     if (groundedFrames > 0) groundedFrames--;
 
-    // Landing particles
     const grounded = groundedFrames > 0;
     if (grounded && !wasGrounded && vel.y > 2) {
         spawnParticles(pos.x, pos.y + RAG.torso, 8, -1);
     }
     wasGrounded = grounded;
 
-    // Head angle: always face the mouse (rendering only, no physics force)
-    headAngle = Math.atan2(mouseWorld.y - pHead.position.y, mouseWorld.x - pHead.position.x);
-
-    // Walking leg animation: alternate swing based on velocity
+    // Walk cycle based on horizontal speed
     const speed = Math.abs(vel.x);
-    if (speed > 0.5) {
-        walkCycle += speed * 0.15;
+    if (speed > 0.3) {
+        walkCycle += speed * 0.18;
     }
-    const legSwing = Math.sin(walkCycle) * 14;
-    const movingDir = left ? -1 : right ? 1 : 0;
 
-    // Leg 1 (left hip) swings forward/back
-    const l1tx = pos.x - 6 + legSwing * (movingDir || 1);
-    const l1ty = pos.y + 28;
-    const l1dx = l1tx - pLeg1.position.x;
-    const l1dy = l1ty - pLeg1.position.y;
-    Body.applyForce(pLeg1, pLeg1.position, { x: l1dx * PHYSICS.legForce, y: l1dy * PHYSICS.legForce });
+    // Head angle: face mouse normally, face grab target when grabbing
+    if (grabTarget && remotePlayers[grabTarget]) {
+        const t = remotePlayers[grabTarget];
+        headAngle = Math.atan2(t.dy - (pos.y - 22), t.dx - pos.x);
+    } else {
+        headAngle = Math.atan2(mouseWorld.y - (pos.y - 22), mouseWorld.x - pos.x);
+    }
 
-    // Leg 2 (right hip) swings opposite
-    const l2tx = pos.x + 6 - legSwing * (movingDir || 1);
-    const l2ty = pos.y + 28;
-    const l2dx = l2tx - pLeg2.position.x;
-    const l2dy = l2ty - pLeg2.position.y;
-    Body.applyForce(pLeg2, pLeg2.position, { x: l2dx * PHYSICS.legForce, y: l2dy * PHYSICS.legForce });
-
-    // Beak close timer
     if (beakCloseTimer > 0) beakCloseTimer--;
 
     // Interpolate remote players
     const lerp = 0.25;
     for (const p of Object.values(remotePlayers)) {
-        p.dx   += (p.x - p.dx) * lerp;
-        p.dy   += (p.y - p.dy) * lerp;
-        p.dhx  += ((p.hx || p.x) - p.dhx) * lerp;
-        p.dhy  += ((p.hy || p.y - 24) - p.dhy) * lerp;
-        p.dha  += ((p.ha || 0) - p.dha) * lerp;
-        p.dl1x += ((p.l1x || p.x - 6) - p.dl1x) * lerp;
-        p.dl1y += ((p.l1y || p.y + 25) - p.dl1y) * lerp;
-        p.dl2x += ((p.l2x || p.x + 6) - p.dl2x) * lerp;
-        p.dl2y += ((p.l2y || p.y + 25) - p.dl2y) * lerp;
+        p.prevDx = p.dx;
+        p.dx += (p.x - p.dx) * lerp;
+        p.dy += (p.y - p.dy) * lerp;
+        // Angle interpolation
+        let adiff = (p.ha || 0) - p.dha;
+        while (adiff > Math.PI) adiff -= Math.PI * 2;
+        while (adiff < -Math.PI) adiff += Math.PI * 2;
+        p.dha += adiff * lerp;
+        // Walk phase from velocity
+        const remoteVx = p.dx - p.prevDx;
+        if (Math.abs(remoteVx) > 0.3) {
+            p.walkPhase += Math.abs(remoteVx) * 0.6;
+        }
     }
 
     updateRemoteBodies();
@@ -421,12 +381,8 @@ function update() {
 
     // Respawn
     if (pos.y > WORLD.height + 100 || pos.x < -100 || pos.x > WORLD.width + 100) {
-        const rx = WORLD.width / 2, ry = WORLD.height - 100;
-        Body.setPosition(pTorso, { x: rx, y: ry });
-        Body.setPosition(pHead, { x: rx, y: ry - 24 });
-        Body.setPosition(pLeg1, { x: rx - 6, y: ry + 25 });
-        Body.setPosition(pLeg2, { x: rx + 6, y: ry + 25 });
-        [pTorso, pHead, pLeg1, pLeg2].forEach(b => Body.setVelocity(b, { x: 0, y: 0 }));
+        Body.setPosition(pBody, { x: WORLD.width / 2, y: WORLD.height - 100 });
+        Body.setVelocity(pBody, { x: 0, y: 0 });
         grabTarget = null;
     }
 
@@ -440,15 +396,14 @@ function update() {
 // ============================================
 function handleGrab() {
     if (!clickedThisFrame) return;
-
-    // Snap beak shut on any click
     beakCloseTimer = 12;
 
     if (grabTarget) { grabTarget = null; return; }
 
-    // Check if beak tip is near a remote player
-    const tipX = pHead.position.x + Math.cos(headAngle) * (RAG.head + RAG.beakLen);
-    const tipY = pHead.position.y + Math.sin(headAngle) * (RAG.head + RAG.beakLen);
+    const head = getHeadPos(pBody.position.x, pBody.position.y);
+    const tipX = head.x + Math.cos(headAngle) * (RAG.head + RAG.beakLen);
+    const tipY = head.y + Math.sin(headAngle) * (RAG.head + RAG.beakLen);
+
     let closest = null, closestD = PHYSICS.grabReach;
     for (const [id, p] of Object.entries(remotePlayers)) {
         const dx = p.dx - tipX, dy = p.dy - tipY;
@@ -459,25 +414,25 @@ function handleGrab() {
 }
 
 function applyGrabForces() {
-    // Break if target too far from beak
     if (grabTarget) {
         const t = remotePlayers[grabTarget];
         if (!t) { grabTarget = null; return; }
-        const tipX = pHead.position.x + Math.cos(headAngle) * (RAG.head + RAG.beakLen);
-        const tipY = pHead.position.y + Math.sin(headAngle) * (RAG.head + RAG.beakLen);
+        const head = getHeadPos(pBody.position.x, pBody.position.y);
+        const tipX = head.x + Math.cos(headAngle) * (RAG.head + RAG.beakLen);
+        const tipY = head.y + Math.sin(headAngle) * (RAG.head + RAG.beakLen);
         const dx = t.dx - tipX, dy = t.dy - tipY;
         if (Math.sqrt(dx * dx + dy * dy) > PHYSICS.grabBreakDist) grabTarget = null;
     }
 
-    // Someone grabbing us: drag toward their beak tip (gx, gy)
+    // Someone grabbing us: drag toward their beak tip
     for (const [id, p] of Object.entries(remotePlayers)) {
         if (p.grab === userId && p.gx != null && p.gy != null) {
-            const dx = p.gx - pTorso.position.x;
-            const dy = p.gy - pTorso.position.y;
+            const dx = p.gx - pBody.position.x;
+            const dy = p.gy - pBody.position.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist > 5) {
                 const f = Math.min(PHYSICS.grabDragForce * dist, PHYSICS.grabMaxForce);
-                Body.applyForce(pTorso, pTorso.position, { x: f * dx / dist, y: f * dy / dist });
+                Body.applyForce(pBody, pBody.position, { x: f * dx / dist, y: f * dy / dist });
             }
         }
     }
@@ -485,8 +440,8 @@ function applyGrabForces() {
 
 function updateCamera() {
     const vw = canvas.width / scale, vh = canvas.height / scale;
-    const tx = pTorso.position.x - vw / 2;
-    const ty = pTorso.position.y - vh / 2;
+    const tx = pBody.position.x - vw / 2;
+    const ty = pBody.position.y - vh / 2;
     camera.x += (tx - camera.x) * 0.08;
     camera.y += (ty - camera.y) * 0.08;
     camera.x = Math.max(0, Math.min(WORLD.width - vw, camera.x));
@@ -527,27 +482,28 @@ function render() {
     drawGrid();
     drawPlatforms();
     drawParticles();
-
-    // Grab lines (dashed line from beak to grabbed player)
     drawGrabLines();
 
     // Remote players
     for (const [id, p] of Object.entries(remotePlayers)) {
+        const legs = getLegPositions(p.dx, p.dy, p.walkPhase || 0);
+        const head = getHeadPos(p.dx, p.dy);
         const beakClosed = p.grab != null;
         drawBird(
-            p.dx, p.dy, p.dhx, p.dhy, p.dha,
-            p.dl1x, p.dl1y, p.dl2x, p.dl2y,
+            p.dx, p.dy, head.x, head.y, p.dha,
+            legs.l1x, legs.l1y, legs.l2x, legs.l2y,
             p.color, p.name, beakClosed, isGrabbed(id)
         );
     }
 
     // Local player
+    const legs = getLegPositions(pBody.position.x, pBody.position.y, walkCycle);
+    const head = getHeadPos(pBody.position.x, pBody.position.y);
     const localBeakClosed = grabTarget != null || beakCloseTimer > 0;
     drawBird(
-        pTorso.position.x, pTorso.position.y,
-        pHead.position.x, pHead.position.y, headAngle,
-        pLeg1.position.x, pLeg1.position.y,
-        pLeg2.position.x, pLeg2.position.y,
+        pBody.position.x, pBody.position.y,
+        head.x, head.y, headAngle,
+        legs.l1x, legs.l1y, legs.l2x, legs.l2y,
         userColor, username, localBeakClosed, isGrabbed(userId)
     );
 
@@ -563,11 +519,11 @@ function isGrabbed(playerId) {
 }
 
 function drawGrabLines() {
-    // Local grab line
     if (grabTarget && remotePlayers[grabTarget]) {
         const t = remotePlayers[grabTarget];
-        const tipX = pHead.position.x + Math.cos(headAngle) * (RAG.head + RAG.beakLen);
-        const tipY = pHead.position.y + Math.sin(headAngle) * (RAG.head + RAG.beakLen);
+        const head = getHeadPos(pBody.position.x, pBody.position.y);
+        const tipX = head.x + Math.cos(headAngle) * (RAG.head + RAG.beakLen);
+        const tipY = head.y + Math.sin(headAngle) * (RAG.head + RAG.beakLen);
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
         ctx.moveTo(tipX, tipY);
@@ -577,10 +533,9 @@ function drawGrabLines() {
         ctx.stroke();
         ctx.setLineDash([]);
     }
-    // Remote grab lines
     for (const p of Object.values(remotePlayers)) {
         if (p.grab && p.gx != null && p.gy != null) {
-            const target = p.grab === userId ? pTorso.position : (remotePlayers[p.grab] || null);
+            const target = p.grab === userId ? pBody.position : (remotePlayers[p.grab] || null);
             if (target) {
                 const tx = p.grab === userId ? target.x : target.dx;
                 const ty = p.grab === userId ? target.y : target.dy;
@@ -634,29 +589,24 @@ function drawParticles() {
 function drawBird(tx, ty, hx, hy, ha, l1x, l1y, l2x, l2y, color, name, beakClosed, beingGrabbed) {
     const dk = darken(color, 0.35);
 
-    // Grabbed glow
     if (beingGrabbed) {
         ctx.beginPath(); ctx.arc(tx, ty, 28, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255,100,100,0.12)'; ctx.fill();
     }
 
     // === Legs (behind torso) ===
-    // Leg 1
     ctx.beginPath();
-    ctx.moveTo(tx - 6, ty + 10);
+    ctx.moveTo(tx - 5, ty + 10);
     ctx.lineTo(l1x, l1y);
     ctx.strokeStyle = '#E8A030'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
-    // Foot 1
     ctx.beginPath(); ctx.arc(l1x, l1y, RAG.leg, 0, Math.PI * 2);
     ctx.fillStyle = '#F0B040'; ctx.fill();
     ctx.strokeStyle = '#C88020'; ctx.lineWidth = 1.5; ctx.stroke();
 
-    // Leg 2
     ctx.beginPath();
-    ctx.moveTo(tx + 6, ty + 10);
+    ctx.moveTo(tx + 5, ty + 10);
     ctx.lineTo(l2x, l2y);
     ctx.strokeStyle = '#E8A030'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
-    // Foot 2
     ctx.beginPath(); ctx.arc(l2x, l2y, RAG.leg, 0, Math.PI * 2);
     ctx.fillStyle = '#F0B040'; ctx.fill();
     ctx.strokeStyle = '#C88020'; ctx.lineWidth = 1.5; ctx.stroke();
@@ -673,7 +623,7 @@ function drawBird(tx, ty, hx, hy, ha, l1x, l1y, l2x, l2y, color, name, beakClose
 
     // === Neck ===
     ctx.beginPath();
-    ctx.moveTo(tx, ty - 12);
+    ctx.moveTo(tx, ty - 10);
     ctx.lineTo(hx, hy + 8);
     ctx.strokeStyle = dk; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.stroke();
 
@@ -685,24 +635,20 @@ function drawBird(tx, ty, hx, hy, ha, l1x, l1y, l2x, l2y, color, name, beakClose
     ctx.fillStyle = color; ctx.fill();
     ctx.strokeStyle = dk; ctx.lineWidth = 2.5; ctx.stroke();
 
-    // === Eyes (positioned toward look direction) ===
+    // === Eyes ===
     const eyeOffset = RAG.head * 0.25;
     const eyeSpread = RAG.head * 0.38;
     const perp = ha + Math.PI / 2;
     const ecx = hx + Math.cos(ha) * eyeOffset;
     const ecy = hy + Math.sin(ha) * eyeOffset;
-    // Left eye
     const le_x = ecx + Math.cos(perp) * eyeSpread;
     const le_y = ecy + Math.sin(perp) * eyeSpread;
-    // Right eye
     const re_x = ecx - Math.cos(perp) * eyeSpread;
     const re_y = ecy - Math.sin(perp) * eyeSpread;
 
-    // White
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(le_x, le_y, 3.5, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(re_x, re_y, 3.5, 0, Math.PI * 2); ctx.fill();
-    // Pupils (shifted toward look direction)
     const pd = 1.5;
     const ppx = Math.cos(ha) * pd, ppy = Math.sin(ha) * pd;
     ctx.fillStyle = '#111';
@@ -722,38 +668,31 @@ function drawBeak(hx, hy, angle, r, closed) {
     const baseW = 5;
     const perp = angle + Math.PI / 2;
 
-    // Base point at head edge
     const bx = hx + Math.cos(angle) * (r - 2);
     const by = hy + Math.sin(angle) * (r - 2);
 
-    // Upper beak
     const uTipX = hx + Math.cos(angle - spread) * (r + len);
     const uTipY = hy + Math.sin(angle - spread) * (r + len);
     const uBaseX = bx + Math.cos(perp) * baseW;
     const uBaseY = by + Math.sin(perp) * baseW;
-
     ctx.beginPath();
     ctx.moveTo(bx, by);
     ctx.lineTo(uBaseX, uBaseY);
     ctx.lineTo(uTipX, uTipY);
     ctx.closePath();
-    ctx.fillStyle = '#FF9800';
-    ctx.fill();
+    ctx.fillStyle = '#FF9800'; ctx.fill();
     ctx.strokeStyle = '#E65100'; ctx.lineWidth = 1; ctx.stroke();
 
-    // Lower beak
     const lTipX = hx + Math.cos(angle + spread) * (r + len);
     const lTipY = hy + Math.sin(angle + spread) * (r + len);
     const lBaseX = bx - Math.cos(perp) * baseW;
     const lBaseY = by - Math.sin(perp) * baseW;
-
     ctx.beginPath();
     ctx.moveTo(bx, by);
     ctx.lineTo(lBaseX, lBaseY);
     ctx.lineTo(lTipX, lTipY);
     ctx.closePath();
-    ctx.fillStyle = '#FB8C00';
-    ctx.fill();
+    ctx.fillStyle = '#FB8C00'; ctx.fill();
     ctx.strokeStyle = '#E65100'; ctx.lineWidth = 1; ctx.stroke();
 }
 
