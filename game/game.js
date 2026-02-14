@@ -35,12 +35,7 @@ let lastSyncTime = 0;
 // Helpers
 // ============================================
 function getUserId() {
-    let id = sessionStorage.getItem('physics_userId');
-    if (!id) {
-        id = 'u_' + Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 4);
-        sessionStorage.setItem('physics_userId', id);
-    }
-    return id;
+    return 'u_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 }
 
 function pickColor() {
@@ -372,13 +367,16 @@ function update() {
     wasGrounded = grounded;
 
     // Arm follows mouse (floppy, physics-based reaching)
+    // Counter-force on torso so arm doesn't drag the whole body
     const aPos = pArm.position;
     const adx = mouseWorld.x - aPos.x;
     const ady = mouseWorld.y - aPos.y;
     const adist = Math.sqrt(adx * adx + ady * ady);
     if (adist > 1) {
         const f = Math.min(PHYSICS.armForce * adist, PHYSICS.armMax);
-        Body.applyForce(pArm, aPos, { x: f * adx / adist, y: f * ady / adist });
+        const fx = f * adx / adist, fy = f * ady / adist;
+        Body.applyForce(pArm, aPos, { x: fx, y: fy });
+        Body.applyForce(pTorso, pTorso.position, { x: -fx * 0.8, y: -fy * 0.8 });
     }
 
     // Leg swings with movement
