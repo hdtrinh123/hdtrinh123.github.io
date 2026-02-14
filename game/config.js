@@ -26,9 +26,10 @@ const PHYSICS = {
     friction: 0.5,
     restitution: 0.4,
     airFriction: 0.015,
-    grabSpring: 0.00025,
-    grabBreakDist: 250,
-    grabRest: 60,
+    grabDragForce: 0.00035,
+    grabMaxForce: 0.008,
+    grabReach: 80,
+    grabBreakDist: 200,
     coyoteFrames: 8
 };
 

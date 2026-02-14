@@ -18,6 +18,7 @@ let camera = { x: 0, y: 0 };
 
 let localBody = null;
 let remotePlayers = {};
+let remoteBodies = {};
 let staticBodies = [];
 let platforms = [];
 let particles = [];
@@ -196,6 +197,35 @@ function spawnPlayer() {
 }
 
 // ============================================
+// Remote Player Collision Bodies
+// ============================================
+function updateRemoteBodies() {
+    // Create or move bodies for current remote players
+    for (const [id, p] of Object.entries(remotePlayers)) {
+        if (!remoteBodies[id]) {
+            const body = Bodies.circle(p.dx, p.dy, PHYSICS.playerRadius, {
+                isStatic: true,
+                restitution: 0.3,
+                friction: 0.5,
+                label: 'remote_' + id
+            });
+            Composite.add(mWorld, body);
+            remoteBodies[id] = body;
+        }
+        Body.setPosition(remoteBodies[id], { x: p.dx, y: p.dy });
+    }
+
+    // Remove bodies for disconnected players
+    for (const id of Object.keys(remoteBodies)) {
+        if (!remotePlayers[id]) {
+            Composite.remove(mWorld, remoteBodies[id]);
+            delete remoteBodies[id];
+            if (grabTarget === id) grabTarget = null;
+        }
+    }
+}
+
+// ============================================
 // Input
 // ============================================
 function setupInput() {
@@ -203,7 +233,6 @@ function setupInput() {
 
     window.addEventListener('keydown', (e) => {
         keys[e.key.toLowerCase()] = true;
-        // Prevent scrolling with arrow keys / space
         if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) {
             e.preventDefault();
         }
@@ -228,7 +257,7 @@ function setupInput() {
         mouseDownPos = null;
     });
 
-    // Touch: left half = left, right half = right, top half = jump
+    // Touch
     canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
         handleTouches(e.touches);
@@ -291,6 +320,7 @@ function setupFirebase() {
                 vx: 0, vy: 0,
                 arm: 0,
                 grab: null,
+                gx: null, gy: null,
                 t: firebase.database.ServerValue.TIMESTAMP
             });
         }
@@ -325,6 +355,15 @@ function syncOut() {
 
     const p = localBody.position;
     const v = localBody.velocity;
+
+    // Compute arm tip position (grab point) for grabbed player's client
+    let gx = null, gy = null;
+    if (grabTarget) {
+        const armLen = PHYSICS.playerRadius + 36;
+        gx = Math.round(p.x + Math.cos(armAngle) * armLen);
+        gy = Math.round(p.y + Math.sin(armAngle) * armLen);
+    }
+
     db.ref('players/' + userId).update({
         x: Math.round(p.x),
         y: Math.round(p.y),
@@ -332,6 +371,7 @@ function syncOut() {
         vy: Math.round(v.y * 10) / 10,
         arm: Math.round(armAngle * 100) / 100,
         grab: grabTarget || null,
+        gx: gx, gy: gy,
         t: firebase.database.ServerValue.TIMESTAMP
     });
 }
@@ -344,7 +384,7 @@ function update() {
     const pos = localBody.position;
     const vel = localBody.velocity;
 
-    // Arm angle
+    // Arm angle follows mouse
     armAngle = Math.atan2(mouseWorld.y - pos.y, mouseWorld.x - pos.x);
 
     // Movement
@@ -375,9 +415,28 @@ function update() {
     }
     wasGrounded = isNowGrounded;
 
+    // Interpolate remote players
+    for (const p of Object.values(remotePlayers)) {
+        p.dx += (p.x - p.dx) * 0.25;
+        p.dy += (p.y - p.dy) * 0.25;
+        let diff = (p.arm || 0) - p.da;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        p.da += diff * 0.25;
+    }
+
+    // Update remote collision bodies
+    updateRemoteBodies();
+
     // Grab
     handleGrab();
     applyGrabForces();
+
+    // Particles
+    updateParticles();
+
+    // Physics step
+    Engine.update(engine, 1000 / 60);
 
     // Respawn if out of bounds
     if (pos.y > WORLD.height + 100 || pos.x < -100 || pos.x > WORLD.width + 100) {
@@ -385,23 +444,6 @@ function update() {
         Body.setVelocity(localBody, { x: 0, y: 0 });
         grabTarget = null;
     }
-
-    // Interpolate remote players
-    for (const p of Object.values(remotePlayers)) {
-        p.dx += (p.x - p.dx) * 0.25;
-        p.dy += (p.y - p.dy) * 0.25;
-        // Angle interpolation
-        let diff = (p.arm || 0) - p.da;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        p.da += diff * 0.25;
-    }
-
-    // Particles
-    updateParticles();
-
-    // Physics step
-    Engine.update(engine, 1000 / 60);
 
     // Camera
     updateCamera();
@@ -412,6 +454,9 @@ function update() {
     clickedThisFrame = false;
 }
 
+// ============================================
+// Grab Mechanic (arm-based)
+// ============================================
 function handleGrab() {
     if (!clickedThisFrame) return;
 
@@ -421,13 +466,14 @@ function handleGrab() {
         return;
     }
 
-    // Check click near a remote player
+    // Check if arm tips are near a remote player
     const pos = localBody.position;
-    const tipX = pos.x + Math.cos(armAngle) * 50;
-    const tipY = pos.y + Math.sin(armAngle) * 50;
+    const reach = PHYSICS.playerRadius + 36; // arm length when grabbing
+    const tipX = pos.x + Math.cos(armAngle) * reach;
+    const tipY = pos.y + Math.sin(armAngle) * reach;
 
     let closest = null;
-    let closestDist = 70;
+    let closestDist = PHYSICS.grabReach;
 
     for (const [id, p] of Object.entries(remotePlayers)) {
         const dx = p.dx - tipX;
@@ -442,7 +488,8 @@ function handleGrab() {
 }
 
 function applyGrabForces() {
-    // Our grab -> pull us toward target
+    // === Us grabbing someone ===
+    // We hold them with our arms - slight pull so we don't drift apart
     if (grabTarget) {
         const t = remotePlayers[grabTarget];
         if (!t) { grabTarget = null; return; }
@@ -452,25 +499,28 @@ function applyGrabForces() {
         const dy = t.dy - pos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
+        // Break if too far
         if (dist > PHYSICS.grabBreakDist) {
             grabTarget = null;
-        } else if (dist > PHYSICS.grabRest) {
-            const f = PHYSICS.grabSpring * (dist - PHYSICS.grabRest);
-            Body.applyForce(localBody, pos, { x: f * dx / dist, y: f * dy / dist });
         }
     }
 
-    // Someone grabbing us -> pull us toward them
+    // === Someone grabbing us with their arms ===
+    // Their arm tip (gx, gy) is where they're holding us - drag us toward it
     for (const [id, p] of Object.entries(remotePlayers)) {
-        if (p.grab === userId) {
+        if (p.grab === userId && p.gx != null && p.gy != null) {
             const pos = localBody.position;
-            const dx = p.dx - pos.x;
-            const dy = p.dy - pos.y;
+            const dx = p.gx - pos.x;
+            const dy = p.gy - pos.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist > PHYSICS.grabRest) {
-                const f = PHYSICS.grabSpring * 0.7 * (dist - PHYSICS.grabRest);
-                Body.applyForce(localBody, pos, { x: f * dx / dist, y: f * dy / dist });
+            if (dist > 5) {
+                // Drag force: scales with distance, capped so it feels heavy
+                const f = Math.min(PHYSICS.grabDragForce * dist, PHYSICS.grabMaxForce);
+                Body.applyForce(localBody, pos, {
+                    x: f * dx / dist,
+                    y: f * dy / dist
+                });
             }
         }
     }
@@ -531,17 +581,39 @@ function render() {
     drawGrid();
     drawPlatforms();
     drawParticles();
-    drawGrabRopes();
 
     // Remote players
     for (const [id, p] of Object.entries(remotePlayers)) {
-        drawCharacter(p.dx, p.dy, p.color, p.name, p.da, p.grab != null);
+        const isBeingGrabbed = isPlayerGrabbed(id);
+        drawCharacter(p.dx, p.dy, p.color, p.name, p.da, p.grab != null, isBeingGrabbed, null);
     }
 
-    // Local player
-    drawCharacter(localBody.position.x, localBody.position.y, userColor, username, armAngle, grabTarget != null);
+    // Local player - draw with grab target info so arms reach toward them
+    const grabPos = getGrabTargetPos();
+    const isLocalGrabbed = isPlayerGrabbed(userId);
+    drawCharacter(
+        localBody.position.x, localBody.position.y,
+        userColor, username, armAngle,
+        grabTarget != null, isLocalGrabbed, grabPos
+    );
 
     ctx.restore();
+}
+
+// Check if a player is being grabbed by anyone
+function isPlayerGrabbed(playerId) {
+    if (grabTarget === playerId) return true;
+    for (const p of Object.values(remotePlayers)) {
+        if (p.grab === playerId) return true;
+    }
+    return false;
+}
+
+// Get the position of the player we're grabbing (for arm rendering)
+function getGrabTargetPos() {
+    if (!grabTarget || !remotePlayers[grabTarget]) return null;
+    const t = remotePlayers[grabTarget];
+    return { x: t.dx, y: t.dy };
 }
 
 function drawGrid() {
@@ -571,22 +643,18 @@ function drawPlatforms() {
     const vh = canvas.height / scale;
 
     for (const p of platforms) {
-        // Cull off-screen
         if (p.x + p.w / 2 < camera.x - 50 || p.x - p.w / 2 > camera.x + vw + 50) continue;
         if (p.y + p.h / 2 < camera.y - 50 || p.y - p.h / 2 > camera.y + vh + 50) continue;
 
         const left = p.x - p.w / 2;
         const top = p.y - p.h / 2;
 
-        // Body
         ctx.fillStyle = '#1e1e3a';
         ctx.fillRect(left, top, p.w, p.h);
 
-        // Top edge highlight
         ctx.fillStyle = '#3a3a6a';
         ctx.fillRect(left, top, p.w, 3);
 
-        // Border
         ctx.strokeStyle = '#2e2e5a';
         ctx.lineWidth = 1;
         ctx.strokeRect(left, top, p.w, p.h);
@@ -604,48 +672,19 @@ function drawParticles() {
     ctx.globalAlpha = 1;
 }
 
-function drawGrabRopes() {
-    // Our grab
-    if (grabTarget && remotePlayers[grabTarget]) {
-        const t = remotePlayers[grabTarget];
-        drawRope(localBody.position.x, localBody.position.y, t.dx, t.dy, userColor);
-    }
-
-    // Remote player grabs
-    for (const [id, p] of Object.entries(remotePlayers)) {
-        if (!p.grab) continue;
-        let tx, ty;
-        if (p.grab === userId) {
-            tx = localBody.position.x;
-            ty = localBody.position.y;
-        } else if (remotePlayers[p.grab]) {
-            tx = remotePlayers[p.grab].dx;
-            ty = remotePlayers[p.grab].dy;
-        } else continue;
-        drawRope(p.dx, p.dy, tx, ty, p.color);
-    }
-}
-
-function drawRope(x1, y1, x2, y2, color) {
-    const mx = (x1 + x2) / 2;
-    const my = (y1 + y2) / 2 + 25;
-
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.quadraticCurveTo(mx, my, x2, y2);
-    ctx.strokeStyle = color + '88';
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = 'round';
-    ctx.setLineDash([8, 6]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-}
-
-function drawCharacter(x, y, color, name, angle, isGrabbing) {
+function drawCharacter(x, y, color, name, angle, isGrabbing, isBeingGrabbed, grabTargetPos) {
     const R = PHYSICS.playerRadius;
 
+    // Grabbed glow
+    if (isBeingGrabbed) {
+        ctx.beginPath();
+        ctx.arc(x, y, R + 8, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 100, 100, 0.15)';
+        ctx.fill();
+    }
+
     // Arms (behind body)
-    drawArms(x, y, R, color, angle, isGrabbing);
+    drawArms(x, y, R, color, angle, isGrabbing, grabTargetPos);
 
     // Body circle
     ctx.beginPath();
@@ -656,9 +695,21 @@ function drawCharacter(x, y, color, name, angle, isGrabbing) {
     ctx.lineWidth = 3;
     ctx.stroke();
 
+    // Grabbed indicator ring
+    if (isBeingGrabbed) {
+        ctx.beginPath();
+        ctx.arc(x, y, R + 2, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
     // Eyes
     const eSpacing = 8;
     const eY = y - 4;
+    const lookAngle = isGrabbing && grabTargetPos
+        ? Math.atan2(grabTargetPos.y - y, grabTargetPos.x - x)
+        : angle;
 
     ctx.fillStyle = '#fff';
     ctx.beginPath();
@@ -666,10 +717,9 @@ function drawCharacter(x, y, color, name, angle, isGrabbing) {
     ctx.arc(x + eSpacing, eY, 5.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Pupils follow arm angle
     const pd = 2.5;
-    const px = Math.cos(angle) * pd;
-    const py = Math.sin(angle) * pd;
+    const px = Math.cos(lookAngle) * pd;
+    const py = Math.sin(lookAngle) * pd;
 
     ctx.fillStyle = '#111';
     ctx.beginPath();
@@ -677,9 +727,18 @@ function drawCharacter(x, y, color, name, angle, isGrabbing) {
     ctx.arc(x + eSpacing + px, eY + py, 2.8, 0, Math.PI * 2);
     ctx.fill();
 
-    // Mouth
+    // Mouth - strain face when grabbing, smile otherwise
     ctx.beginPath();
-    ctx.arc(x, y + 6, 5, 0.15, Math.PI - 0.15);
+    if (isGrabbing) {
+        // Determined/strain face
+        ctx.arc(x, y + 7, 4, 0, Math.PI);
+    } else if (isBeingGrabbed) {
+        // Surprised face
+        ctx.arc(x, y + 7, 4, 0, Math.PI * 2);
+    } else {
+        // Normal smile
+        ctx.arc(x, y + 6, 5, 0.15, Math.PI - 0.15);
+    }
     ctx.strokeStyle = darken(color, 0.45);
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
@@ -695,39 +754,72 @@ function drawCharacter(x, y, color, name, angle, isGrabbing) {
     ctx.shadowBlur = 0;
 }
 
-function drawArms(x, y, R, color, angle, isGrabbing) {
-    const len = isGrabbing ? 36 : 26;
-    const spread = 0.35;
+function drawArms(x, y, R, color, angle, isGrabbing, grabTargetPos) {
     const dark = darken(color, 0.35);
 
-    const angles = [angle - spread, angle + spread];
+    if (isGrabbing && grabTargetPos) {
+        // Arms reach toward the grabbed player
+        const grabAngle = Math.atan2(grabTargetPos.y - y, grabTargetPos.x - x);
+        const dx = grabTargetPos.x - x;
+        const dy = grabTargetPos.y - y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        // Arms stretch toward target, max extension = dist to target clamped
+        const reach = Math.min(dist, R + 45);
+        const spread = 0.25;
 
-    for (const a of angles) {
-        // Shoulder: on body edge
-        const sx = x + Math.cos(a) * R * 0.4;
-        const sy = y + Math.sin(a) * R * 0.4;
+        const angles = [grabAngle - spread, grabAngle + spread];
+        for (const a of angles) {
+            const sx = x + Math.cos(a) * R * 0.4;
+            const sy = y + Math.sin(a) * R * 0.4;
+            const hx = x + Math.cos(a) * reach;
+            const hy = y + Math.sin(a) * reach;
 
-        // Hand
-        const hx = x + Math.cos(a) * (R + len);
-        const hy = y + Math.sin(a) * (R + len);
+            // Arm
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(hx, hy);
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.stroke();
 
-        // Arm line
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(hx, hy);
-        ctx.strokeStyle = dark;
-        ctx.lineWidth = 8;
-        ctx.lineCap = 'round';
-        ctx.stroke();
+            // Hand (closed fist when grabbing = slightly smaller)
+            ctx.beginPath();
+            ctx.arc(hx, hy, 5.5, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+        }
+    } else {
+        // Normal arms following aim angle
+        const len = 26;
+        const spread = 0.35;
+        const angles = [angle - spread, angle + spread];
 
-        // Hand
-        ctx.beginPath();
-        ctx.arc(hx, hy, 6.5, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = dark;
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        for (const a of angles) {
+            const sx = x + Math.cos(a) * R * 0.4;
+            const sy = y + Math.sin(a) * R * 0.4;
+            const hx = x + Math.cos(a) * (R + len);
+            const hy = y + Math.sin(a) * (R + len);
+
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(hx, hy);
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(hx, hy, 6.5, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
     }
 }
 
