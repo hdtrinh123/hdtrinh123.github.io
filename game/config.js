@@ -17,12 +17,12 @@ const WORLD = {
     viewWidth: 900
 };
 
-// Ragdoll body sizes
+// Body sizes
 const RAG = {
-    head: 11,
+    head: 12,
     torso: 15,
-    arm: 7,
-    leg: 8
+    leg: 7,
+    beakLen: 16
 };
 
 // Physics tuning
@@ -31,13 +31,11 @@ const PHYSICS = {
     jumpSpeed: 8,
     maxSpeed: 6,
     coyoteFrames: 8,
-    armForce: 0.0006,
-    armMax: 0.005,
-    legForce: 0.0002,
+    legForce: 0.0003,
     grabDragForce: 0.00035,
     grabMaxForce: 0.008,
-    grabReach: 55,
-    grabBreakDist: 180,
+    grabReach: 45,
+    grabBreakDist: 160,
     remoteSpring: 0.003,
     remoteDamp: 0.85
 };
