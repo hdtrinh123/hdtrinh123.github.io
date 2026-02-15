@@ -154,7 +154,8 @@ function updateRemoteBodies() {
             remoteBodies[id] = body;
         }
         const body = remoteBodies[id];
-        body.isSensor = (grabTarget === id);
+        // Sensor if we're grabbing them OR they're grabbing us (prevent collision both ways)
+        body.isSensor = (grabTarget === id) || (p.grab === userId);
         const dx = p.dx - body.position.x;
         const dy = p.dy - body.position.y;
         Body.applyForce(body, body.position, {
@@ -321,7 +322,7 @@ function update() {
 
     // Walk cycle
     const speed = Math.abs(vel.x);
-    if (speed > 0.3) walkCycle += speed * 0.18;
+    if (speed > 0.3) walkCycle += speed * 0.03;
 
     // Head angle + grab state (from grab.js)
     computeHeadState();
