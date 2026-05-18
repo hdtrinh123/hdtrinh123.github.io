@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            /*everything should stack vertidcally and be centered*/
+            background-color: #000000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            /* also put the canvas in the center vercially*/
+            height: 100vh;
+        }
+        .title {
+            color: #ffffff;
+            font-family: "Garamond", serif;
+            margin-bottom: 20px;
+            position: absolute;
+            top: 20px;
+        }
+        canvas {
+            border: 3px solid #383838;
+            border-radius: 5px;
+            background-color: #1b1a22;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="title">I tried my [maybe not] best</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script src="main.js"></script>
+</body>
+</html>

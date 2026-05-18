@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body{
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+            height: 100vh;
+            text-align: center;
+        }
+        h1 {
+            text-align: center;
+            margin: 12px 0;
+        }
+        .spin {
+            width: 200px;
+            height: 200px;
+            background-color: lightblue;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        /* grid-of-cards styles */
+        .grid {
+            margin: 10px;
+            display: grid;
+            gap: 16px;
+            /* fill the width of the page but cover the header */
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            width: 100%;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .card-title {
+            font-weight: 700;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #222;
+        }
+        canvas { display:block; width:100%; height:auto; border-radius:4px; background: #f6f8fa; }
+    </style>
+</head>
+<body>
+    <h1>A bunch of different ways to create codes</h1>
+    <div class="spin">
+        I'm a spinning thing
+        <script>
+            const spinElement = document.querySelector('.spin');
+            let angle = 0;
+            function rotate() {
+                angle += 1; // Adjust the speed of rotation here
+                spinElement.style.transform = `perspective(1000px) rotateY(${angle}deg)`;
+                requestAnimationFrame(rotate);
+            }
+            rotate();
+        </script>
+    </div>
+        <div class="grid">
+            <!-- Canvas cards: each card contains a small title and a canvas element -->
+            <div class="card">
+                <div class="card-title">Rotary</div>
+                <canvas id="canvas-rotary" width="300" height="180"></canvas>
+            </div>
+            <div class="card">
+                <div class="card-title">Bouncing Dot</div>
+                <canvas id="canvas-bounce" width="300" height="180"></canvas>
+            </div>
+            <div class="card">
+                <div class="card-title">Noise Lines</div>
+                <canvas id="canvas-noise" width="300" height="180"></canvas>
+            </div>
+            <div class="card">
+                <div class="card-title">Color Bands</div>
+                <canvas id="canvas-bands" width="300" height="180"></canvas>
+            </div>
+            <div class="card">
+                <div class="card-title">Grid</div>
+                <canvas id="canvas-grid" width="300" height="180"></canvas>
+            </div>
+            <div class="card">
+                <div class="card-title">Random Dots</div>
+                <canvas id="canvas-dots" width="300" height="180"></canvas>
+            </div>
+        </div>
+    <script src="main.js"></script>
+    <script>
+        // Small demo initializers for each canvas. Keep them lightweight.
+        // function initRotary(id) {
+        //     const c = document.getElementById(id);
+        //     const ctx = c.getContext('2d');
+        //     let a = 0;
+        //     function draw() {
+        //         a += 0.03;
+        //         ctx.clearRect(0,0,c.width,c.height);
+        //         ctx.save();
+        //         ctx.translate(c.width/2, c.height/2);
+        //         ctx.rotate(a);
+        //         ctx.fillStyle = '#8ecae6';
+        //         ctx.fillRect(-40,-40,80,80);
+        //         ctx.restore();
+        //         requestAnimationFrame(draw);
+        //     }
+        //     draw();
+        // }
+
+        function initBounce(id) {
+            const c = document.getElementById(id);
+            const ctx = c.getContext('2d');
+            let x = 20, vx = 2;
+            function draw() {
+                x += vx;
+                if (x > c.width-20 || x < 20) vx *= -1;
+                ctx.clearRect(0,0,c.width,c.height);
+                ctx.beginPath(); ctx.fillStyle='#ffb703'; ctx.arc(x,c.height/2,12,0,Math.PI*2); ctx.fill();
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        function initNoiseLines(id) {
+            const c = document.getElementById(id);
+            const ctx = c.getContext('2d');
+            let t = 0;
+            function draw() {
+                t += 0.02;
+                ctx.clearRect(0,0,c.width,c.height);
+                for (let y=10;y<c.height;y+=10) {
+                    ctx.beginPath();
+                    ctx.moveTo(0,y);
+                    for (let x=0;x<c.width;x+=10) {
+                        const dy = Math.sin((x*0.05) + t + y*0.02) * 6;
+                        ctx.lineTo(x, y + dy);
+                    }
+                    ctx.strokeStyle = 'rgba(63,81,181,0.7)';
+                    ctx.stroke();
+                }
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        function initBands(id) {
+            const c = document.getElementById(id);
+            const ctx = c.getContext('2d');
+            let offset = 0;
+            function draw() {
+                offset += 1;
+                const bandH = 20;
+                for (let i=0;i<Math.ceil(c.height/bandH);i++) {
+                    ctx.fillStyle = `hsl(${(i*40 + offset)%360} 70% 60%)`;
+                    ctx.fillRect(0, i*bandH, c.width, bandH);
+                }
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        function initGrid(id) {
+            const c = document.getElementById(id);
+            const ctx = c.getContext('2d');
+            function draw() {
+                ctx.clearRect(0,0,c.width,c.height);
+                ctx.strokeStyle = '#333';
+                for (let x=0;x<=c.width;x+=20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,c.height); ctx.stroke(); }
+                for (let y=0;y<=c.height;y+=20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(c.width,y); ctx.stroke(); }
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        function initDots(id) {
+            const c = document.getElementById(id);
+            const ctx = c.getContext('2d');
+            const dots = Array.from({length:40},()=>({x:Math.random()*c.width,y:Math.random()*c.height, r:1+Math.random()*3}));
+            function draw() {
+                ctx.clearRect(0,0,c.width,c.height);
+                for (const d of dots) {
+                    ctx.fillStyle = 'rgba(2,62,138,0.8)'; ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,Math.PI*2); ctx.fill();
+                }
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        // initialize all canvases
+        initRotary('canvas-rotary');
+        initBounce('canvas-bounce');
+        initNoiseLines('canvas-noise');
+        initBands('canvas-bands');
+        initGrid('canvas-grid');
+        initDots('canvas-dots');
+    </script>
+</body>
+</html>
