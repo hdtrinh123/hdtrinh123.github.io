@@ -1,3 +1,3 @@
-i've only got a 1/10th finished game and a docs containing some ascii that i'll use for brainf*** later.
+A readme file that you don't have to read
 
-wait no the game isn't even on the github
+This website is just something for me to put my stuff of so that its easy to try out and access
