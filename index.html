@@ -14,6 +14,7 @@
             padding: 10px;
             display: inline-flex;
             font-weight: bolder;
+            font-size: 3em;
         }
         .outline {
             width: fit-content;
@@ -26,15 +27,68 @@
             -webkit-text-fill-color: transparent;
             -webkit-text-stroke: 1px #000000;
         }
-         
+        .mainstuff {
+            display: flex;
+            flex-direction: column;
+            align-items: left;
+            justify-content: left;
+        }
+        .otherstuff {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-grow: 1;
+            perspective: 250px;
+        }
+        .all-container {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            flex-wrap: wrap;
+            width: 100vw;
+        }
+        #box {
+            width: 100px;
+            height: 100px;
+            background-color: #d50425;
+            transform: rotate(180deg);
+            border-radius: 5%;
+            border: 2px solid #000000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            /*text should just slighlty be bigger than the box. it should rely on the width of the box*/
+            font-size: calc(100px * 0.4);
+            animation: move 10s linear infinite;
+        }
+        @keyframes move {
+            from {
+                transform: rotateY(180deg) rotateX(0deg);
+            }
+            to {
+                transform: rotateY(900deg) rotateX(-1080deg);
+            }
+        }
     </style>
 </head>
 <body>
-    <h1 class="title">Tis' the home page</h1> 
-    <p>Thi'sj'e description o' site. On this page things that this one has created shall reside </p>
-    <div class="outline">THE STUFF THAT I HAVE MADE</div>
-    <!--sites list-->
-    <a href="beginReading/help.html">A guide description thing I guess</a>
-    <br>
-    <a href="dishes">Unload a bunch of dishes</a>
+    <h1 class="title">Tis' the home page</h1>
+    <div class="all-container">
+        <div class="mainstuff"> 
+            <p>Thi'sj'e description o' site. On this page things that this one has created shall reside </p>
+            <div class="outline">THE STUFF THAT I HAVE MADE</div>
+            <!--sites list-->
+            <a href="beginReading/help.html">A guide description thing I guess</a>
+            <a href="dishes">Unload a bunch of dishes</a>
+            <a href="rpg">An rpg like</a>
+        </div>
+        <div class="otherstuff">
+            <div id="box">
+                I'm a silly square
+            </div>
+        </div>
+    </div>
 </body>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level Editor</title>
+    <style>
+        #level-editor-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        #levelEditorCanvas {
+            border: 1px solid #000000;
+            border-radius: 5px;
+            background-color: #1b1a22;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        #ui-layer {
+            display: flex;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.35);
+            z-index: 2;
+            color: #ffffff;
+            align-items: flex-start;
+        }
+        #ui-panel {
+            margin: 16px;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.45);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .ui-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+        .ui-row label {
+            font-family: Arial, sans-serif;
+        }
+        #ui-layer button {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #000000;
+            background-color: #1b1a22;
+            color: #ffffff;
+        }
+        #ui-layer button:hover {
+            background-color: #383838;
+        }
+        #ui-layer button:active {
+            background-color: #585858;
+        }
+        select, ::picker(select) {
+            appearance: base-select;
+        }
+        ::picker(select) {
+            position-area: center center;
+            display: flex;
+            flex-direction: row;
+            gap: 4px;
+            padding: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Level Editor</h1>
+    <div id="level-editor-container">
+        <canvas id="levelEditorCanvas" width="800" height="600"></canvas>
+        <div id="ui-layer">
+            <div id="ui-panel">
+                <div class="ui-row" id="file-row">
+                    <button id="saveLevelButton">Save Level</button>
+                    <button id="loadLevelButton">Load Level</button>
+                    <button id="deleteLevelButton">Delete Level</button>
+                </div>
+
+                <div class="ui-row" id="edit-row">
+                    <button id="undoButton">Undo</button>
+                    <button id="redoButton">Redo</button>
+                </div>
+
+                <div class="ui-row" id="tile-row">
+                    <label for="tileSelector">Select a tile:</label>
+                    <select id="tileSelector">
+                        <option value="1">wall</option>
+                        <option value="2">floor</option>
+                        <option value="3">door</option>
+                        <option value="4">window</option>
+                        <option value="5">roof</option>
+                        <option value="6">tree</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
