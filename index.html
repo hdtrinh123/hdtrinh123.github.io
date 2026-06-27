@@ -2,19 +2,48 @@
 <head>
     <title>Home Page</title>
     <style>
+        :root {
+            /*colors*/
+            --background-color: white;
+            --text-color: black;
+            --title-background: beige;
+            --border:black;
+        }
+        [data-theme='dark'] {
+            --background-color: black;
+            --text-color: white;
+            --title-background: rgb(232, 232, 151);
+            --border:rgba(0, 0, 0, 0.50);
+        }
         body {
+            background-color: var(--background-color);
             font-family: Arial, sans-serif;
             margin: 10px;
+            color: var(--text-color);
+            transition: background-color 0.5s, color 0.5s;
         }
         .title {
             color: #1b0436;
-            border: 1px solid #000000;
-            background-color: beige;
+            border: 1px solid var(--border);
+            background-color: var(--title-background);
+            transition: background-color 0.5s;
             border-radius: 5px;
             padding: 10px;
+            margin-left:36px;
             display: inline-flex;
             font-weight: bolder;
             font-size: 3em;
+            animation: title-enter 1s ease-out;
+        }
+        @keyframes title-enter{
+            0%{
+                opacity: 0;
+                transform: translateX(50%);
+            }
+            100%{
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
         .outline {
             width: fit-content;
@@ -25,13 +54,42 @@
             background-clip: text;
             color: transparent;
             -webkit-text-fill-color: transparent;
-            -webkit-text-stroke: 1px #000000;
+            -webkit-text-stroke: 1px var(--border);
         }
         .mainstuff {
             display: flex;
             flex-direction: column;
             align-items: left;
             justify-content: left;
+            position: relative;
+            left:50px;
+            color: var(--text-color);
+        }
+        .mainstuff a {
+        display: inline-block;
+        width: fit-content;
+        transition: transform 0.5s ease;
+        transform: scale(1);
+
+        transform:-1000px;
+        animation: pullin 1.5s ease-out backwards;
+        animation-delay: calc(var(--i) * 0.15s);
+
+        }
+        .mainstuff a:hover {
+            transform: scale(1.1);
+        }
+
+        @keyframes pullin {
+            from {
+                transform: translateY(300px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+                transition: transform 0.5s ease;
+            }
         }
         .otherstuff {
             display: flex;
@@ -72,6 +130,13 @@
                 transform: rotateY(900deg) rotateX(-1080deg);
             }
         }
+        #darkMode {
+            position: absolute;
+            left:auto;
+            bottom:0;
+            width:fit-content;
+            margin:20px
+        }
     </style>
 </head>
 <body>
@@ -81,14 +146,34 @@
             <p>Thi'sj'e description o' site. On this page things that this one has created shall reside </p>
             <div class="outline">THE STUFF THAT I HAVE MADE</div>
             <!--sites list-->
-            <a href="beginReading/help.html">A guide description thing I guess</a>
-            <a href="dishes">Unload a bunch of dishes</a>
-            <a href="rpg">An rpg like</a>
+            <a style="--i: 1" href="beginReading/help.html">A guide description thing I guess</a>
+            <a style="--i: 2" href="dishes">Unload a bunch of dishes</a>
+            <a style="--i: 3" href="rpg">An rpg like</a>
+            <a style="--i: 4" href="platformer">platformer</a>
+            <a style="--i: 5" href="sand">sand sim</a>
+            <a style="--i: 6" href="codes">some thingamajigs</a>
         </div>
         <div class="otherstuff">
             <div id="box">
                 I'm a silly square
             </div>
         </div>
+        <button onclick="toggletheme()" class="button" id="darkMode">Toggle Dark Mode</button>
+        <script>
+            function toggletheme(){
+                document.documentElement.setAttribute(
+                    'data-theme',
+                    document.documentElement.getAttribute('data-theme') === 'dark'
+                    ? 'light'
+                    : 'dark'
+                );
+                localStorage.setItem(
+                    'theme',
+                    document.documentElement.getAttribute('data-theme')
+                );
+                
+            };
+            document.documentElement.setAttribute('data-theme', localStorage.getItem('theme')) 
+        </script>
     </div>
 </body>

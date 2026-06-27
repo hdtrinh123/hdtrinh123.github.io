@@ -1,6 +1,7 @@
 const canvas = document.getElementById('gameCanvas');
 /** @type {CanvasRenderingContext2D} */
 const ctx = canvas.getContext('2d');
+/// <reference types="mathjs" />
 
 const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
 
@@ -70,12 +71,14 @@ class Wall extends Entity {
 }
 
 class Portal extends Entity {
-    constructor(x, y, width, height, targetX, targetY) {
-        super(x, y, 75, 10, 'blue');
-        this.rotation = 0;
+    constructor(x, y, width = 75, height = 10, targetX = 0, targetY = 0, rotation = 0) {
+        super(x, y, width, height, 'blue');
+        this.rotation = rotation;
+        this.targetX = targetX;
+        this.targetY = targetY;
     }
 
-    draw(ctx) {
+    render(ctx) {
         ctx.save();
         ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
         ctx.rotate(this.rotation);
@@ -85,28 +88,63 @@ class Portal extends Entity {
     }
 
     rotIntersects(entity) {
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        const ux = [Math.cos(this.rotation), Math.sin(this.rotation)];   // unit axis along width
+        const uy = [-Math.sin(this.rotation), Math.cos(this.rotation)];  // unit axis along height
+        const aabbx = [1, 0];
+        const aabby = [0, 1];
+        for (const axis of [ux, uy, aabbx, aabby]) {
+            // Project the corners of the entity onto the axis, and check if any are within the half-extents of the portal on that axis.
+            const hw = Math.abs(math.dot(ux, axis)) * this.width / 2 + Math.abs(math.dot(uy, axis)) * this.height / 2;
+            const hh = Math.abs(math.dot(ux, axis)) * this.width / 2 + Math.abs(math.dot(uy, axis)) * this.height / 2;
+        
+            for (const corner of [
+                {x: entity.x, y: entity.y},
+                {x: entity.x + entity.width, y: entity.y},
+                {x: entity.x, y: entity.y + entity.height},
+                {x: entity.x + entity.width, y: entity.y + entity.height},
+            ]) 
+            {
+                const w = [corner.x - cx, corner.y - cy]; // dot to project onto each axis
+                if (Math.abs(math.dot(w, ux)) <= hw && Math.abs(math.dot(w, uy)) <= hh) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
-    update(dt, player) {
-        if(this.intersects(player)) {}
+    update(_dt, world) {
+        // Check every movable entity (anything that is not a solid wall)
+        for (const entity of world.movableEntities) {
+            if (entity === this) continue; // skip self
+            if (this.rotIntersects(entity)) {
+                console.log('touching portal:', entity.constructor.name);
+                return;
+            }
+        }
     }
+
 }
+
 class Player extends Entity {
     constructor(x = 100, y = 100) {
         super(x, y, 50, 50, 'blue');
         this.vx = 0;
         this.vy = 0;
         this.grounded = false;
-        this.jumpbuffer = 0; // jump buffering, in ms
+        this.jumpbuffer = 0; // jump within a distance of the ground
         this.coyoteTime = 0; // coyote time, in ms
+        this.justjumped = false;
 
         // Momentum retention: physics shouldn't be entirely accurate, this
         // makes it feel smoother. If a collision cancels our speed but we leave
         // the surface again within `momentumGrace` ms, we get that speed back
         // instead of dead-stopping. Tracked per-axis. (underscore = internal)
-        this.momentumGrace = 120; // ms you can stay touching a surface and still keep your speed on the way off
-        this._momentumX = 0;
-        this._momentumY = 0;
+        this.momentumGrace = 20; // ms you can stay touching a surface and still keep your speed on the way off
+        this.momentum = 0;
+        this.maxMomentum = 1000; // px/s, cap the speed we can retain (otherwise you can get a huge boost by falling off a wall)
         this._momentumTimerX = 0;
         this._momentumTimerY = 0;
         this._contactX = false;
@@ -116,7 +154,7 @@ class Player extends Entity {
         this.moveSpeed = 300;   // px/s horizontal target
         this.smoothing = 12;    // higher = snappier accel/decel
         this.jumpSpeed = 600;   // px/s launch
-        this.jumpBufferTime = 0.1 * 1000; // milliseconds to buffer jump input before landing
+        this.jumpBufferDistance = 10; //jump within 10 pixels of the ground
         this.coyoteTimeLimit = 0.1 * 1000; // milliseconds to allow jumping after leaving a platform
         this.gravity = 1500;    // px/s^2
     }
@@ -137,13 +175,10 @@ class Player extends Entity {
         } else {
             this.coyoteTime = Math.max(0, this.coyoteTime - dt * 1000);
         }
-        if (input.wasPressed(...JUMP_KEYS)) {
-            this.jumpbuffer = this.jumpBufferTime;
-        }
-        if (this.jumpbuffer > 0 && this.coyoteTime > 0) {
-            this.vy = -this.jumpSpeed;
-            this.grounded = false;
-            this.vx += targetX * 0.1; // small horizontal boost when jumping
+        for(let solids of world.solids){
+            this.y-=10
+            if(this.intersects(solids))
+            this.y+=10
         }
 
         // --- gravity ---
@@ -180,26 +215,27 @@ class Player extends Entity {
     // collision cancelled, instead of dead-stopping. The window starts on the
     // first frame of contact and keeps ticking while we stay touching — so only
     // *brief* brushes keep their speed; leaning on a wall lets the window close.
-    retainMomentum(axis, preVel, hit, dt) {
-        const isX = axis === 'x';
-        const stash = isX ? '_momentumX' : '_momentumY';
-        const timer = isX ? '_momentumTimerX' : '_momentumTimerY';
-        const wasContact = isX ? '_contactX' : '_contactY';
+    // retainMomentum(axis, preVel, hit, dt) {
+    //     const isX = axis === 'x';
+    //     const stash = isX ? '_momentumX' : '_momentumY';
+    //     const timer = isX ? '_momentumTimerX' : '_momentumTimerY';
+    //     const wasContact = isX ? '_contactX' : '_contactY';
 
-        if (hit) {
-            if (!this[wasContact]) { // rising edge: just touched
-                this[stash] = preVel;
-                this[timer] = this.momentumGrace;
-            }
-        } else if (this[timer] > 0) { // slipped off in time: hand the speed back
-            if (isX) this.vx = this[stash];
-            else this.vy = this[stash];
-            this[timer] = 0;
-        }
+    //     if (hit) {
+    //         if (!this[wasContact]) { // rising edge: just touched
+    //             this[stash] = preVel;
+    //             this[timer] = this.momentumGrace;
+    //         }
+    //     } else if (this[timer] > 0) { // slipped off in time: hand the speed back
+    //         if (isX) this.vx = this[stash];
+    //         else this.vy = this[stash];
+    //         this[timer] = 0;
+    //     }
 
-        this[wasContact] = hit;
-        this[timer] = Math.max(0, this[timer] - dt * 1000);
-    }
+    //     this[wasContact] = hit;
+    //     this[timer] = Math.max(0, this[timer] - dt * 1000);
+    // }
+
 
     // Push the player out of any solid it overlaps along a single axis, using
     // the sign of its velocity on that axis to decide which side. Returns true
@@ -244,6 +280,10 @@ class World {
         return this.entities.filter((e) => e.solid);
     }
 
+    get movableEntities() {
+        return this.entities.filter((e) => !e.solid);
+    }
+
     update(dt) {
         for (const entity of this.entities) entity.update(dt, this);
     }
@@ -262,6 +302,7 @@ const world = new World();
 // spawned any — handy to have some here as a starting point).
 world.add(new Wall(300, 450, 200, 30));
 world.add(new Wall(550, 350, 150, 30));
+world.add(new Portal(420, 240, 75, 10, 100, 113, Math.PI / 2));
 
 const player = world.add(new Player(100, 113));
 
