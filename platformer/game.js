@@ -168,9 +168,7 @@ class Player extends Entity {
         const amt = 1 - Math.exp(-this.smoothing * dt);
         this.vx = lerp(this.vx, targetX, amt);
         if (Math.abs(this.vx) < 5) this.vx = 0;
-
-        this.jumpbuffer = Math.max(0, this.jumpbuffer - dt * 1000);
-        if (this.grounded) {
+        if (this.grounded ) {
             this.coyoteTime = this.coyoteTimeLimit;
         } else {
             this.coyoteTime = Math.max(0, this.coyoteTime - dt * 1000);
@@ -215,26 +213,26 @@ class Player extends Entity {
     // collision cancelled, instead of dead-stopping. The window starts on the
     // first frame of contact and keeps ticking while we stay touching — so only
     // *brief* brushes keep their speed; leaning on a wall lets the window close.
-    // retainMomentum(axis, preVel, hit, dt) {
-    //     const isX = axis === 'x';
-    //     const stash = isX ? '_momentumX' : '_momentumY';
-    //     const timer = isX ? '_momentumTimerX' : '_momentumTimerY';
-    //     const wasContact = isX ? '_contactX' : '_contactY';
+    retainMomentum(axis, preVel, hit, dt) {
+        const isX = axis === 'x';
+        const stash = isX ? '_momentumX' : '_momentumY';
+        const timer = isX ? '_momentumTimerX' : '_momentumTimerY';
+        const wasContact = isX ? '_contactX' : '_contactY';
 
-    //     if (hit) {
-    //         if (!this[wasContact]) { // rising edge: just touched
-    //             this[stash] = preVel;
-    //             this[timer] = this.momentumGrace;
-    //         }
-    //     } else if (this[timer] > 0) { // slipped off in time: hand the speed back
-    //         if (isX) this.vx = this[stash];
-    //         else this.vy = this[stash];
-    //         this[timer] = 0;
-    //     }
+        if (hit) {
+            if (!this[wasContact]) { // rising edge: just touched
+                this[stash] = preVel;
+                this[timer] = this.momentumGrace;
+            }
+        } else if (this[timer] > 0) { // slipped off in time: hand the speed back
+            if (isX) this.vx = this[stash];
+            else this.vy = this[stash];
+            this[timer] = 0;
+        }
 
-    //     this[wasContact] = hit;
-    //     this[timer] = Math.max(0, this[timer] - dt * 1000);
-    // }
+        this[wasContact] = hit;
+        this[timer] = Math.max(0, this[timer] - dt * 1000);
+    }
 
 
     // Push the player out of any solid it overlaps along a single axis, using

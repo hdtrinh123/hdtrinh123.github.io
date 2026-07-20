@@ -7,7 +7,7 @@ const config = {
     radius: 60,        // How "deep" the cylinder is
     fontSize: 40,
     spacing: 70,       // Gap between cylinders
-    yOffset: 150       // Vertical center of the lock
+    yOffset: 100       // Vertical center of the lock
 };
 
 let rotations = Array(config.count).fill(0);
@@ -66,12 +66,18 @@ function draw() {
 canvas.addEventListener('mousedown', (e) => {
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
     
     // Determine which cylinder index was clicked
     const clickedIdx = Math.floor((mouseX - 15) / config.spacing);
     
     if (clickedIdx >= 0 && clickedIdx < config.count) {
-        targets[clickedIdx] += (Math.PI * 2) / 10;
+        if(mouseY>100){
+            targets[clickedIdx] -= (Math.PI * 2) / 10
+        } else { 
+            targets[clickedIdx] += (Math.PI * 2) / 10
+        }
+        
     }
 });
 

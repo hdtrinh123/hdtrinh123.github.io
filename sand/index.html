@@ -27,6 +27,7 @@
 
         .btn {
             padding: 6px 20px;
+            padding-left: 3px;
             background: rgba(255, 255, 255, 0.317);
             color: #fff;
             user-select: none;
@@ -81,7 +82,6 @@
             position: inherit;
             width: calc(100vw - 200px); /* Adjust width to account for #leftbox */
             height: 100%;
-            
         }
     </style>
 </head>
@@ -93,12 +93,25 @@
         </div>
         <div id="rightbox">
             <canvas id="canvas"></canvas>
-            <div class="tools">
-                <div class="btn" id="set_sand">Sand</div>
-                <div class="btn" id="set_water">Water</div>
-                <div class="btn" id="set_wall">Wall</div>
-                <div class="btn" id="set_eraser">Eraser</div>
+            <div class="tools" id="materialSelector">
+                <label class="btn">
+                    <input type="radio" name="materialSelector" value="0" checked>
+                    <span>Eraser</span>
+                </label>
+                <label class="btn">
+                    <input type="radio" name="materialSelector" value="1">
+                    <span>Sand</span>
+                </label>
+                <label class="btn">
+                    <input type="radio" name="materialSelector" value="2">
+                    <span>Water</span>
+                </label>
+                <label class="btn">
+                    <input type="radio" name="materialSelector" value="3">
+                    <span>Wall</span>
+                </label>
             </div>
+
         </div>
     </div>
     <script src="./main.js"></script>

@@ -1,0 +1,47 @@
+<!-- This works with the uiswitch.js -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Title</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Optional heading</h1>
+
+    <div id="gameContainer">
+        
+        <canvas id="gameCanvas" width="800" height="600"></canvas> <!-- Put whatever size you want for the canvas -->
+
+        <!-- Main menu -->
+        <div id="mainMenu" class="ui-element active">
+            <h1>Main Menu</h1>
+            <button id="startButton" class="">Start Game</button>
+            <button id="settingsButton">Settings</button>
+            <button id="instructionsButton">Instructions</button>
+        </div>
+
+        <!-- Instructions -->
+        <div id="instructionsPanel" class="ui-element">
+            <h1>Instructions</h1>
+            <p>Arrow keys - Movement</p>
+            <p>[1-5] - Special Moves/Attacks</p>
+            <button class="backToMenuButton">Back to Menu</button>
+        </div>
+
+        <!-- Settings -->
+        <div id="settingsPanel" class="ui-element">
+            <h1>Settings</h1>
+            <p>Nothing in here yet</p>
+            <p>You'll be able to change keybinds later</p>
+            <button class="backToMenuButton">Back to Menu</button>
+        </div>
+
+    </div>
+    
+    <script src="../math.js"></script>
+    <script type="module" src="./src/uiswitch.js"></script>
+</body>
+</html>
