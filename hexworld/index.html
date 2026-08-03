@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HexWorld — a Hex Casting sandbox</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="content">
+
+  <nav id="menu">
+    <button class="menu_btn" data-panel="patterns" title="Patterns (1)"><span>⬡</span></button>
+    <button class="menu_btn" data-panel="stack" title="Stack (2)"><span>☰</span></button>
+    <button class="menu_btn" data-panel="casting" title="Casting Context (3)"><span>◈</span></button>
+    <button class="menu_btn" data-panel="file" title="File (4)"><span>▤</span></button>
+    <div class="menu_spacer"></div>
+    <button class="menu_btn" id="btn_cast" title="Toggle casting panel (C)"><span>✶</span></button>
+  </nav>
+
+  <aside id="panels">
+
+    <section class="panel" data-panel="patterns">
+      <header class="panel_title">Patterns</header>
+      <div class="scroll_container" id="pattern_list"></div>
+      <div id="add_pattern">
+        <div class="autocomplete_container" id="autocomplete" hidden></div>
+        <input id="add_pattern_input" type="text" placeholder="Add a pattern" autocomplete="off" spellcheck="false">
+        <button id="add_pattern_btn" title="Add">+</button>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="stack" hidden>
+      <header class="panel_title">Stack</header>
+      <div class="scroll_container" id="stack_list"></div>
+    </section>
+
+    <section class="panel" data-panel="casting" hidden>
+      <header class="panel_title">Casting Context</header>
+      <div class="scroll_container" id="casting_panel"></div>
+    </section>
+
+    <section class="panel" data-panel="file" hidden>
+      <header class="panel_title">File</header>
+      <div class="scroll_container" id="file_panel"></div>
+    </section>
+
+  </aside>
+
+  <main id="right">
+    <div id="stage">
+      <canvas id="world_canvas"></canvas>
+      <canvas id="grid_canvas" hidden></canvas>
+
+      <div id="hud">
+        <div class="hud_row"><b>HexWorld</b></div>
+        <div class="hud_row" id="hud_pos">—</div>
+        <div class="hud_row hud_hint">WASD / arrows move the Mind &middot; drag to pan &middot; wheel to zoom</div>
+        <div class="hud_row hud_hint"><kbd>C</kbd> casting panel &middot; <kbd>Enter</kbd> cast &middot; <kbd>Esc</kbd> close</div>
+      </div>
+
+      <div id="console"></div>
+
+      <div id="grid_controls" hidden>
+        <button id="btn_sort" title="Re-pack drawings">⇥</button>
+        <button id="btn_zoom_out" title="Zoom out">−</button>
+        <button id="btn_zoom_in" title="Zoom in">+</button>
+        <button id="btn_clear" title="Clear all patterns">✕</button>
+        <button id="btn_cast_now" class="primary" title="Cast (Enter)">Cast</button>
+      </div>
+    </div>
+
+    <div id="bottom_box">
+      <div id="timeline_label">Timeline</div>
+      <canvas id="timeline_canvas"></canvas>
+    </div>
+  </main>
+
+</div>
+
+<div id="overlay" hidden>
+  <div class="overlay_box">
+    <header id="overlay_title">Import</header>
+    <textarea id="overlay_text" spellcheck="false"></textarea>
+    <div class="overlay_buttons">
+      <button id="overlay_ok" class="primary">Import</button>
+      <button id="overlay_cancel" class="danger">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/hex.js"></script>
+<script src="js/registry.js"></script>
+<script src="js/iota.js"></script>
+<script src="js/world.js"></script>
+<script src="js/vm.js"></script>
+<script src="js/actions.js"></script>
+<script src="js/grid.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

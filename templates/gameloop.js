@@ -5,13 +5,16 @@ let ctx = canvas.getContext('2d');
 const input = {
     clicked: false,
 }
+let lastTime=0
+let deltaTime=0
 
-// Note: pointerdown toggles draw mode on/off in your current setup
 canvas.addEventListener("pointerdown", () => {
     input.clicked = !input.clicked;
 });
+canvas.addEventListener("keydown", (e) => {
+});
 
-function update() {
+function update(dt) {
     //In here does the logic of the game, like updating positions, checking for collisions, etc.
 }
 
@@ -21,8 +24,10 @@ function draw() {
 }
 
 function gameLoop() {
-    update(); //Update first
+    deltaTime=performance.now()-lastTime
+    update(deltaTime); //Update first
     draw(); //Then draw the updated state
     requestAnimationFrame(gameLoop);
+    lastTime=performance.now()
 }
 gameLoop();

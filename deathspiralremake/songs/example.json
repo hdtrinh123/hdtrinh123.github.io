@@ -1,0 +1,23 @@
+{
+    "songName" : "eep!",
+    "bpm" : 130,
+    "music" : "./assets/audio/eep.m4a",
+    "notes": [
+        {"type":0,"time":0},
+        {"type":0,"time":0.5},
+        {"type":0,"time":1},
+        {"type":0,"time":1.5},
+        {"type":0,"time":2},
+        {"type":0,"time":2.75},
+        {"type:":0,"time":3.5},
+        {"type:":0,"time":3.75},
+        {"type:":0,"time":4},
+        {"type:":0,"time":4.5},
+        {"type:":0,"time":5},
+        {"type:":0,"time":5.5},
+        {"type:":0,"time":6},
+        {"type:":0,"time":6.75}
+
+
+    ]
+}

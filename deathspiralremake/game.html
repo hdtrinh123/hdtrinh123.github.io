@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Death Spiral</title>
+    <style>
+        body { 
+            background-color: rgb(148, 220, 220);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #canvas {background-color: transparent;}
+        .tree { background-image: url('assets/backgrounds/tree.jpg'); background-size: cover; }
+        .church { background-image: url('assets/backgrounds/church.jpg'); background-size: cover; }
+    </style>
+    <!-- Put the icon on here <link rel="icon" type="image/x-icon" href="/favicon.ico"> -->
+    <link rel="icon" href="data:,"> <!--Dummy no icon-->
+</head>
+<body>
+    <!--Visuals behind the canvas-->
+    <div id="gamestage" class="trees">
+        <!-- <img src="assets/enemy/prototype.png" class="game-element active" id="enemy"> -->
+        <canvas id="canvas" width="800" height="600"></canvas>
+    </div>
+    <script type="module" src="./game.js"></script>
+</body>
+</html>
