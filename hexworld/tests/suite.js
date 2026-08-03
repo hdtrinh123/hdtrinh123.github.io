@@ -311,6 +311,50 @@ eq('snapshot 0 after first push', snap.snapshots[0].stack.length, 1);
 eq('snapshot 2 after the add', snap.snapshots[2].stack.length, 1);
 eq('resolutions recorded', snap.resolutions.length, 3);
 
+group('interop formats');
+{
+  // Build App.patterns-shaped entries from resolvable text; startDir is an index.
+  const pats = (lines) => lines.map((l) => {
+    const r = Registry.resolveText(l);
+    return { signature: r.signature, startDir: r.startDir };
+  });
+  const norm = (list) => list.map((p) => [p.signature, typeof p.startDir === 'number' ? Hex.DIR_NAMES[p.startDir] : p.startDir]);
+
+  const set = ["Mind's Reflection", 'Numerical Reflection: 4', "Bookkeeper's Gambit: v-v",
+    'Introspection', 'Consideration', "Jester's Gambit", 'Retrospection'];
+
+  // --- .hexparse
+  eq('hexparse intro/retro/name', Formats.writeHexparse(pats(['Introspection', "Mind's Reflection", 'Retrospection'])), '(,get_caster,)');
+  eq('hexparse number token', Formats.writeHexparse(pats(['Numerical Reflection: 4'])), 'num_4');
+  eq('hexparse mask token', Formats.writeHexparse(pats(["Bookkeeper's Gambit: v-v"])), 'mask_v-v');
+  const hpp = Formats.parseHexparse('get_caster, num_4 ; mask_-v- \\ ( get_caster )');
+  eq('hexparse parses mixed separators', hpp.patterns.length, 7);
+  const hppd = Formats.parseHexparse('get_caster true 5 vec_1_2_3');
+  eq('hexparse skips data literals', [hppd.patterns.length, hppd.skipped], [1, 3]);
+  eq('hexparse round-trip', norm(Formats.parseHexparse(Formats.writeHexparse(pats(set))).patterns), norm(pats(set)));
+
+  // --- .hexpattern
+  eq('hexpattern unknown iota <DIR sig>', norm(Formats.parseHexpattern('<NORTH_WEST aqwed>').patterns), [['aqwed', 'NORTH_WEST']]);
+  const hpat = Formats.parseHexpattern("Mind's Reflection\n<-6.9>\n[\n]\n// comment\n/* block */ Retrospection");
+  eq('hexpattern comments + skips', [hpat.patterns.length, hpat.skipped], [2, 3]);
+  eq('hexpattern round-trip', norm(Formats.parseHexpattern(Formats.writeHexpattern(pats(set))).patterns), norm(pats(set)));
+
+  // --- .hex (Hex Studio elm-serialize)
+  const hexStr = Formats.writeHex(pats(set), 'demo');
+  eq('hex has V1_ prefix', hexStr.slice(0, 3), 'V1_');
+  eq('hex round-trip', norm(Formats.readHex(hexStr).patterns), norm(pats(set)));
+  // Byte-exact empty project locks the elm-serialize 1.3.0 layout:
+  // version, u32 count=0, ravenmind Nothing (u16 0), 3 empty dicts (u32 0),
+  // then projectName string "A" (u32 len 1 + 0x41).
+  eq('hex empty-project bytes', Array.from(Formats.b64urlToBytes(Formats.writeHex([], 'A').slice(3))),
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 65]);
+  // Layout for one pattern: version[0] count[1..4] sigLen[5..8] active[9] dir[10..11].
+  eq('hex direction tags', [
+    Array.from(Formats.b64urlToBytes(Formats.writeHex([{ signature: '', startDir: 'NORTH_EAST' }], '').slice(3))).slice(10, 12),
+    Array.from(Formats.b64urlToBytes(Formats.writeHex([{ signature: '', startDir: 'SOUTH_WEST' }], '').slice(3))).slice(10, 12),
+  ], [[0, 0], [0, 5]]);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 const html = LOG.join('\n')
   .replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))

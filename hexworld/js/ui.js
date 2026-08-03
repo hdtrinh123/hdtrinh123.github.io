@@ -314,6 +314,29 @@
     btn('Clear all patterns', () => App.clearPatterns());
     host.appendChild(gap());
 
+    host.appendChild(section('Interop'));
+    btn('Import File (.hex / .hexpattern / .hexparse / .json)', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = '.hex,.hexpattern,.hexparse,.json';
+      inp.onchange = () => {
+        const f = inp.files && inp.files[0];
+        if (!f) return;
+        const rd = new FileReader();
+        rd.onload = () => App.importByExtension(f.name, String(rd.result));
+        rd.readAsText(f);
+      };
+      inp.click();
+    });
+    host.appendChild(gap());
+    btn('Download .hexpattern (HexDebug)', () => App.downloadFormat('hexpattern'));
+    btn('Download .hexparse (HexParse)', () => App.downloadFormat('hexparse'));
+    btn('Download .hex (Hex Studio)', () => App.downloadFormat('hex'));
+    host.appendChild(gap());
+    btn('View .hexpattern text', () => UI.openOverlay('.hexpattern', Formats.writeHexpattern(App.patterns), null));
+    btn('View .hexparse text', () => UI.openOverlay('.hexparse', Formats.writeHexparse(App.patterns), null));
+    host.appendChild(gap());
+
     host.appendChild(section('World'));
     btn('Regenerate world (new seed)', () => App.regenerate());
     const seedRow = document.createElement('div');

@@ -233,6 +233,80 @@
     URL.revokeObjectURL(a.href);
   };
 
+  // -------------------------------------------- interop: .hex/.hexpattern/.hexparse
+  // Replace the pattern list from a normalised [{signature, startDir(name)}] list.
+  App.setPatternsFromImport = function (list, msg, tone) {
+    App.patterns = list.map((r) => ({
+      signature: r.signature,
+      startDir: Hex.dirIndex(r.startDir),
+      points: [],
+      match: Registry.matchPattern(r.signature, r.startDir),
+    }));
+    App.grid.relayout();
+    App.timelineIndex = -1;
+    App.evaluate();
+    UI.renderAll();
+    App.requestRender();
+    App.log(msg, tone || 'info');
+  };
+
+  function importNote(count, res) {
+    let m = `Imported ${count} pattern${count === 1 ? '' : 's'}.`;
+    const extra = [];
+    if (res.failed && res.failed.length) extra.push(`${res.failed.length} line(s) unrecognised`);
+    if (res.skipped) extra.push(`${res.skipped} literal iota(s) skipped`);
+    if (extra.length) m += ' ' + extra.join(', ') + '.';
+    return { m, tone: res.failed && res.failed.length ? 'error' : 'info' };
+  }
+
+  // Route an imported file to the right parser by its extension.
+  App.importByExtension = function (filename, content) {
+    const name = (filename || '').toLowerCase();
+    const base = filename.replace(/\.[^.]+$/, '');
+    try {
+      if (name.endsWith('.json')) { App.importProject(content); return; }
+      if (name.endsWith('.hexpattern')) {
+        const res = Formats.parseHexpattern(content);
+        App.projectName = base || App.projectName;
+        const n = importNote(res.patterns.length, res);
+        App.setPatternsFromImport(res.patterns, n.m, n.tone);
+        return;
+      }
+      if (name.endsWith('.hexparse')) {
+        const res = Formats.parseHexparse(content);
+        App.projectName = base || App.projectName;
+        const n = importNote(res.patterns.length, res);
+        App.setPatternsFromImport(res.patterns, n.m, n.tone);
+        return;
+      }
+      if (name.endsWith('.hex')) {
+        const res = Formats.readHex(content);
+        App.projectName = base || App.projectName;
+        App.setPatternsFromImport(res.patterns, `Imported ${res.patterns.length} pattern(s) from Hex Studio .hex.`);
+        return;
+      }
+      App.log(`Don't know how to import "${filename}".`, 'error');
+    } catch (e) {
+      App.log('Import failed: ' + e.message, 'error');
+    }
+  };
+
+  App.downloadBlob = function (content, filename, mime) {
+    const blob = new Blob([content], { type: mime || 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  App.downloadFormat = function (kind) {
+    const stem = App.projectName || 'untitled';
+    if (kind === 'hexpattern') App.downloadBlob(Formats.writeHexpattern(App.patterns), stem + '.hexpattern');
+    else if (kind === 'hexparse') App.downloadBlob(Formats.writeHexparse(App.patterns), stem + '.hexparse');
+    else if (kind === 'hex') App.downloadBlob(Formats.writeHex(App.patterns, stem), stem + '.hex');
+  };
+
   App.exportGridImage = function () {
     const a = document.createElement('a');
     a.href = $('#grid_canvas').toDataURL('image/png');

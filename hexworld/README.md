@@ -50,6 +50,29 @@ or a bookkeeper code (`v-v`).
 The timeline strip under the grid has one node per pattern; click one to scrub
 the stack view back to that step.
 
+## Interop with other Hex tools
+
+The **File** panel imports and exports the three file formats the wider Hex
+Casting toolchain uses, so spells move in and out of this sandbox without
+retyping. **Import File** sniffs the extension; the three **Download** buttons
+save the current pattern list.
+
+| format | tool | what it is |
+|---|---|---|
+| `.hexpattern` | [HexDebug](https://github.com/object-Object/HexDebug) / [vscode-hex-casting](https://github.com/object-Object/vscode-hex-casting) | plain text, one display name per line; `{`/`}` for intro/retro, `Consideration`, `<DIR sig>` for unknown patterns, `//` and `/* */` comments |
+| `.hexparse` | [HexParseMod](https://github.com/YukkuriC/HexParseMod) | a flat token stream — whitespace, commas and semicolons all separate; `(`/`)` = intro/retro, `\` = Consideration, `num_`/`mask_`/`_sig` encode the special patterns, `[ ]` wrap literal lists |
+| `.hex` | [Hex Studio](https://master-bw3.github.io/Hex-Studio/) | **not** JSON — a MartinSStewart `elm-serialize` 1.3.0 binary blob, base64url-encoded with a `V1_` prefix. Reimplemented byte-for-byte (big-endian, `0x01` version byte, `Array<{signature,active,startDirection}>` first in the record) so files round-trip with the real app. |
+
+What these formats can carry is a **list of patterns**, which is exactly what
+this app edits, so anything drawable here survives a round trip. Two honest
+limits: literal *data* iotas that aren't patterns (a bare vector, a `[1 2 3]`
+list literal, `<-6.9>`) are counted and skipped on import, since there's
+nowhere to put them in a pattern list; and an *unknown* pattern exported to
+`.hexparse` becomes a raw `_signature`, which the format assumes starts facing
+EAST, so a non-EAST start direction on an unrecognised pattern is lost that one
+way. On `.hex` export the casting context (stack, ravenmind, macros) is written
+empty — only the patterns and project name are stored.
+
 ## Preview vs. casting
 
 Editing the pattern list re-evaluates it constantly, which would be a problem
@@ -141,6 +164,7 @@ Adapted for a 2D, player-free world:
 |---|---|
 | `js/hex.js` | hex grid maths, pattern positions, validity, signature ↔ points |
 | `js/registry.js` | the pattern table, number/mask special handlers, the matcher |
+| `js/formats.js` | import/export for `.hexpattern`, `.hexparse`, `.hex` |
 | `js/iota.js` | the nine iota types, equality, truthiness, display |
 | `js/world.js` | tiles, terrain generation, physics, entities |
 | `js/vm.js` | `CastingImage`, continuation frames, mishaps, the evaluator |
@@ -149,5 +173,6 @@ Adapted for a 2D, player-free world:
 | `js/ui.js` | side panels and the timeline |
 | `js/app.js` | world rendering, camera, keybinds, import/export |
 
-`tests/logic-tests.html` runs 146 assertions over the geometry, the encoders,
-the matcher and the VM, including the book's own worked examples.
+`tests/logic-tests.html` runs 175 assertions over the geometry, the encoders,
+the matcher, the VM and the file-format converters, including the book's own
+worked examples and a byte-exact check of the `.hex` binary layout.
