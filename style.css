@@ -12,7 +12,7 @@
     --text-color: white;
     --title-background: rgb(28, 28, 16);
     --title-border:rgba(77, 77, 77, 0.369);
-    --title-color: #9e9da0;
+    --title-color: #f9f9f9;
     --border:white
 }
 [data-animation='off'] *,

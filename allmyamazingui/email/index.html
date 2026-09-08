@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connected Draggable Boxes - Node Graph</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #f0f2f5;
+      font-family: sans-serif;
+    }
+
+    #container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Central anchor box */
+    #main-box {
+      position: absolute;
+      /* FIX 1: Replaced transform with calc() for perfect JS coordinate matching */
+      top: calc(50% - 50px);
+      left: calc(50% - 50px);
+      width: 100px;
+      height: 100px;
+      background: #3b82f6;
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      z-index: 10;
+      cursor: grab;
+      user-select: none;
+    }
+
+    /* Dynamic floating boxes */
+    .spawned-box {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      background: #10b981;
+      color: white;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      text-align: center;
+      z-index: 10;
+      cursor: grab;
+      user-select: none;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    /* SVG Canvas Overlay */
+    #svg-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .connection-line {
+      stroke: #94a3b8;
+      stroke-width: 3;
+      stroke-dasharray: 6; 
+    }
+  </style>
+</head>
+<body>
+
+  <div id="container">
+    <div id="main-box">Center</div>
+  </div>
+
+  <svg id="svg-canvas"></svg>
+
+  <script>
+    const container = document.getElementById('container');
+    const mainBox = document.getElementById('main-box');
+    const svgCanvas = document.getElementById('svg-canvas');
+
+    const customTypes = ['User', 'Server', 'Database', 'API', 'Client'];
+
+    const boxDataStore = [
+      {
+        id: 'node_main',
+        title: 'Center',
+        type: 'Hub',
+        connections: [],
+        connectionlengths: []
+      }
+    ];
+
+    const elementsMap = {
+      'node_main': mainBox
+    };
+
+    makeElementDraggable(mainBox, 'node_main');
+
+    // FIX 2: Rewrote recursive logic to be cleaner and generate a proper tree
+    function recursivespawning(currentDepth, parentId, childrenCount, maxDepth) {
+      if (currentDepth >= maxDepth) return;
+      
+      for (let i = 0; i < childrenCount; i++) {
+        const box = document.createElement('div');
+        box.classList.add('spawned-box');
+        
+        const randomX = Math.random() * (window.innerWidth - 120) + 20;
+        const randomY = Math.random() * (window.innerHeight - 120) + 20;
+        
+        box.style.left = `${randomX}px`;
+        box.style.top = `${randomY}px`;
+        
+        container.appendChild(box);
+
+        const nodeId = `node_${currentDepth}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+        elementsMap[nodeId] = box;
+
+        // Calculate initial distance for rigidity
+        const el1 = box;
+        const el2 = elementsMap[parentId];
+        const rect1 = el1.getBoundingClientRect();
+        const rect2 = el2.getBoundingClientRect();
+        const x1 = rect1.left + rect1.width / 2;
+        const y1 = rect1.top + rect1.height / 2;
+        const x2 = rect2.left + rect2.width / 2;
+        const y2 = rect2.top + rect2.height / 2;
+        const dist = Math.hypot(x2 - x1, y2 - y1);
+
+        // Define the new node data
+        const newNode = {
+          id: nodeId,
+          title: `Box ${i + 1}`,
+          type: customTypes[i % customTypes.length],
+          connections: [parentId],
+          connectionlengths: [dist]
+        };
+
+        // Push to store
+        boxDataStore.push(newNode);
+
+        // FIX 3: Add back-reference to parent! (Bi-directional connections)
+        const parentNode = boxDataStore.find(n => n.id === parentId);
+        if (parentNode) {
+            parentNode.connections.push(nodeId);
+            parentNode.connectionlengths.push(dist);
+        }
+
+        // Apply HTML using the specific node we just generated
+        box.innerHTML = `<strong>${newNode.title}</strong><br>${newNode.type}`;
+        
+        makeElementDraggable(box, nodeId);
+
+        // Keep maxDepth low (like 1 or 2) so you don't spawn 1,000s of boxes offscreen!
+        recursivespawning(currentDepth + 1, nodeId, childrenCount, maxDepth);
+      }
+    }
+    
+    // Generate 1 tier of 5 boxes
+    recursivespawning(0, 'node_main', 3, 3); 
+
+    function makeElementDraggable(element, nodeId) {
+      let offsetX = 0;
+      let offsetY = 0;
+
+      element.addEventListener('mousedown', dragStart);
+
+      function dragStart(e) {
+        element.style.cursor = 'grabbing';
+        
+        const nodeData = boxDataStore.find(n => n.id === nodeId);
+        console.log(`Dragging ${nodeData.title} (${nodeId})`, nodeData);
+
+        offsetX = e.clientX - element.offsetLeft;
+        offsetY = e.clientY - element.offsetTop;
+        
+        window.addEventListener('mousemove', dragging);
+        window.addEventListener('mouseup', dragEnd);
+      }
+
+      function dragging(e) {
+        element.style.left = `${e.clientX - offsetX}px`;
+        element.style.top = `${e.clientY - offsetY}px`;
+
+        const visited = new Set(); 
+
+        function pullConnections(currentElementId) {
+          if (visited.has(currentElementId)) return;
+          visited.add(currentElementId);
+
+          const currentData = boxDataStore.find(n => n.id === currentElementId);
+          if (!currentData || !currentData.connections) return;
+
+          for (let i = 0; i < currentData.connections.length; i++) {
+            const targetId = currentData.connections[i];
+            
+            if (visited.has(targetId)) continue; 
+
+            const el1 = elementsMap[currentElementId];
+            const el2 = elementsMap[targetId];
+            if (!el1 || !el2) continue;
+
+            const rect1 = el1.getBoundingClientRect();
+            const rect2 = el2.getBoundingClientRect();
+            const x1 = rect1.left + rect1.width / 2;
+            const y1 = rect1.top + rect1.height / 2;
+            const x2 = rect2.left + rect2.width / 2;
+            const y2 = rect2.top + rect2.height / 2;
+
+            let dist = Math.hypot(x2 - x1, y2 - y1);
+            if (dist === 0) dist = 0.001; 
+
+            const desiredLength = currentData.connectionlengths[i];
+
+            el2.style.left = `${x1 + ((x2 - x1) / dist) * desiredLength - rect2.width / 2}px`;
+            el2.style.top = `${y1 + ((y2 - y1) / dist) * desiredLength - rect2.height / 2}px`;
+            
+            pullConnections(targetId); 
+          }
+        }
+        
+        pullConnections(nodeId); 
+        drawConnections();
+      }
+
+      function dragEnd() {
+        element.style.cursor = 'grab';
+        window.removeEventListener('mousemove', dragging);
+        window.removeEventListener('mouseup', dragEnd);
+      }
+    }
+
+    function drawConnections() {
+      svgCanvas.innerHTML = ''; 
+      const drawnPairs = new Set(); 
+
+      boxDataStore.forEach(node => {
+        const el1 = elementsMap[node.id];
+        if (!el1) return;
+
+        const rect1 = el1.getBoundingClientRect();
+        const x1 = rect1.left + rect1.width / 2;
+        const y1 = rect1.top + rect1.height / 2;
+
+        node.connections.forEach(targetId => {
+          const pairKey = [node.id, targetId].sort().join('-');
+          if (drawnPairs.has(pairKey)) return; 
+          drawnPairs.add(pairKey);
+
+          const el2 = elementsMap[targetId];
+          if (!el2) return;
+
+          const rect2 = el2.getBoundingClientRect();
+          const x2 = rect2.left + rect2.width / 2;
+          const y2 = rect2.top + rect2.height / 2;
+
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.classList.add('connection-line');
+          line.setAttribute('x1', x1);
+          line.setAttribute('y1', y1);
+          line.setAttribute('x2', x2);
+          line.setAttribute('y2', y2);
+          
+          svgCanvas.appendChild(line);
+        });
+      });
+    }
+
+    requestAnimationFrame(() => {
+      drawConnections();
+    });
+
+    window.addEventListener('resize', drawConnections);
+  </script>
+
+</body>
+</html>

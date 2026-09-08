@@ -23,23 +23,32 @@
             <a style="--i: 5" href="sand">sand sim</a>
             <a style="--i: 6" href="codes">some thingamajigs</a>
             <a style="--i: 7" href="fight">Me-ortal Combat</a>
+            <a style="--i: 8" href="deathspiralremake">This one started out as a remake, but then became an unfinished rhythm game</a>
+            <a style="--i: 9" href="allmyamazingui">My attempt at terrible ux</a>
+            <br>
+            <a style="--i: 10; color: red;" href="https://hexcasting.hexxy.media/v/0.11.4/1.0/en_us/#casting/101">Just a note about the one below: I didn't make this, claudeCode did. It runs at 20 FPS to match the tps of minecraft. You can check the hexcasting docs for more info.</a>
+            <a style="--i: 10" href="hexworld">Hexworld</a>
         </div>
         <div class="otherstuff">
             <div id="box">
                 I'm a silly square
             </div>
         </div>
-        <button onclick="toggletheme()" class="button" id="darkMode">
-            <span class="material-symbols-outlined">
-                dark_mode
-            </span> 
-        </button>
-        <button onclick="lessAnimations()" class="button" id="lessAnimations">
-            <!-- <span class="material-symbols-outlined">
-                less_animations
-            </span> -->
-            less animations
-        </button>
+        
+        <div id="toggles">
+            <button onclick="toggletheme()" class="button" id="darkMode">
+                <span class="material-symbols-outlined">
+                    dark_mode
+                </span> 
+            </button>
+            <button onclick="lessAnimations()" class="button" id="lessAnimations">
+                <!-- <span class="material-symbols-outlined">
+                    less_animations
+                </span> -->
+                less animations
+            </button>
+        </div>
+        
         <script>
             function toggletheme(){
                 document.documentElement.setAttribute(
@@ -66,6 +75,7 @@
                     document.documentElement.getAttribute('data-animations')
                 );
             }
+
             document.addEventListener('DOMContentLoaded', () => {
                 const theme = localStorage.getItem('theme') || 'light';
                 document.documentElement.setAttribute('data-theme', theme);

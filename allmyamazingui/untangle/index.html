@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Untangle - Rigid Node Graph Puzzle</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #f0f2f5;
+      font-family: sans-serif;
+      touch-action: none;
+    }
+
+    /* ---------- Top bar ---------- */
+    #topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      z-index: 40;
+      font-size: 14px;
+    }
+
+    #topbar .spacer { flex: 1; }
+
+    .stat {
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: bold;
+      font-size: 16px;
+      color: #334155;
+      white-space: nowrap;
+    }
+
+    #crossings.clean { color: #10b981; }
+    #crossings.dirty { color: #ef4444; }
+
+    .zoom-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 6px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+    }
+    .zoom-group button { padding: 4px 10px; }
+    #zoom-level {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      color: #64748b;
+      width: 48px;
+      text-align: center;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 14px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #334155;
+      cursor: pointer;
+    }
+    button:hover { background: #f1f5f9; }
+
+    button.primary {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    button.primary:hover { background: #2563eb; }
+
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ---------- Play area ---------- */
+    #container {
+      position: absolute;
+      top: 56px; left: 0;
+      width: 100vw;
+      height: calc(100vh - 56px);
+      overflow: hidden;
+      cursor: grab;
+    }
+    #container.panning { cursor: grabbing; }
+
+    /* Everything inside lives in world coordinates; this div is pan/zoomed. */
+    #world {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      transform-origin: 0 0;
+    }
+
+    .node {
+      position: absolute;
+      background: #10b981;
+      color: white;
+      border-radius: 50%;
+      z-index: 10;
+      cursor: grab;
+      user-select: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* Invisible padding so the small deep nodes stay grabbable. */
+    .node::after {
+      content: '';
+      position: absolute;
+      inset: -7px;
+      border-radius: 50%;
+    }
+
+    .node.root { background: #3b82f6; z-index: 12; }
+    .node.dragging {
+      cursor: grabbing;
+      background: #f59e0b;
+      z-index: 20;
+      box-shadow: 0 0 0 4px rgba(245,158,11,.35);
+    }
+
+    #svg-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;      /* links may hang outside the starting viewport */
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .connection-line {
+      stroke: #94a3b8;
+      stroke-width: 2.5;
+    }
+    .connection-line.crossed {
+      stroke: #ef4444;
+      stroke-width: 3.5;
+    }
+
+    /* ---------- Overlays ---------- */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, .55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .overlay.hidden { display: none; }
+
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px 32px;
+      width: 360px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.25);
+    }
+
+    .panel h1 { margin: 0 0 4px; font-size: 24px; color: #1e293b; }
+    .panel p.sub { margin: 0 0 20px; color: #64748b; font-size: 13px; line-height: 1.5; }
+
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: bold;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    .field input[type=range] { width: 100%; }
+    .field .val {
+      float: right;
+      font-family: 'Courier New', Courier, monospace;
+      color: #3b82f6;
+    }
+
+    #node-count {
+      font-size: 13px;
+      color: #64748b;
+      margin: 0 0 18px;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    #node-count.too-many { color: #ef4444; font-weight: bold; }
+
+    .panel button.primary { width: 100%; padding: 12px; font-size: 16px; }
+
+    .hint {
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin: 16px 0 0;
+    }
+
+    #final-time {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 40px;
+      font-weight: bold;
+      color: #10b981;
+      text-align: center;
+      margin: 10px 0 4px;
+    }
+    #best-time {
+      text-align: center;
+      font-size: 13px;
+      color: #64748b;
+      margin: 0 0 20px;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ef4444;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-size: 14px;
+      z-index: 90;
+      opacity: 0;
+      transition: opacity .2s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <div id="topbar">
+    <span class="stat">Time: <span id="timer">0.0s</span></span>
+    <span class="stat">Crossings: <span id="crossings" class="dirty">0</span></span>
+    <span class="spacer"></span>
+
+    <div class="zoom-group">
+      <button id="zoom-out-btn" title="Zoom out">&minus;</button>
+      <span id="zoom-level">100%</span>
+      <button id="zoom-in-btn" title="Zoom in">+</button>
+      <button id="fit-btn" title="Fit the whole graph on screen">Fit</button>
+    </div>
+
+    <button id="shuffle-btn">Shuffle</button>
+    <button id="setup-btn">New Puzzle</button>
+    <button id="submit-btn" class="primary">Submit</button>
+    <button onclick="window.location.href='../index.html'">Home</button>
+  </div>
+
+  <div id="container">
+    <div id="world">
+      <svg id="svg-canvas"></svg>
+    </div>
+  </div>
+
+  <!-- Setup screen -->
+  <div id="setup-overlay" class="overlay">
+    <div class="panel">
+      <h1>Untangle</h1>
+      <p class="sub">Every connection is a rigid rod &mdash; drag one node and the whole thing swings with it. Get all the lines to stop crossing, then hit Submit.</p>
+
+      <div class="field">
+        <label for="depth-input">Depth <span class="val" id="depth-val">3</span></label>
+        <input type="range" id="depth-input" min="1" max="6" value="3">
+      </div>
+
+      <div class="field">
+        <label for="children-input">Nodes per node <span class="val" id="children-val">3</span></label>
+        <input type="range" id="children-input" min="1" max="6" value="3">
+      </div>
+
+      <div class="field">
+        <label for="random-input">Rod randomness <span class="val" id="random-val">25%</span></label>
+        <input type="range" id="random-input" min="0" max="100" value="25">
+      </div>
+
+      <p id="node-count">Total nodes: 40</p>
+
+      <button id="start-btn" class="primary">Start</button>
+
+      <p class="hint">Rod randomness 0% gives every rod in a tier the exact same length; 100% throws the lengths anywhere on screen, so expect a sprawl. Scroll wheel or the &minus;/+ buttons to zoom, drag the background to pan, Fit to frame everything. The clock starts on Start.</p>
+    </div>
+  </div>
+
+  <!-- Win screen -->
+  <div id="win-overlay" class="overlay hidden">
+    <div class="panel">
+      <h1>Untangled!</h1>
+      <p class="sub">No crossing connections. Nice work.</p>
+      <div id="final-time">0.0s</div>
+      <p id="best-time"></p>
+      <button id="again-btn" class="primary">New Puzzle</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const container   = document.getElementById('container');
+    const world       = document.getElementById('world');
+    const svgCanvas   = document.getElementById('svg-canvas');
+    const timerEl     = document.getElementById('timer');
+    const crossingsEl = document.getElementById('crossings');
+    const zoomLevelEl = document.getElementById('zoom-level');
+    const toastEl     = document.getElementById('toast');
+
+    const setupOverlay  = document.getElementById('setup-overlay');
+    const winOverlay    = document.getElementById('win-overlay');
+    const depthInput    = document.getElementById('depth-input');
+    const childrenInput = document.getElementById('children-input');
+    const randomInput   = document.getElementById('random-input');
+    const depthVal      = document.getElementById('depth-val');
+    const childrenVal   = document.getElementById('children-val');
+    const randomVal     = document.getElementById('random-val');
+    const nodeCountEl   = document.getElementById('node-count');
+    const startBtn      = document.getElementById('start-btn');
+
+    const MAX_NODES = 400;
+    const MIN_ZOOM = 0.1;
+    const MAX_ZOOM = 3;
+
+    // ---------- Game state ----------
+    // node: { id, depth, x, y, r, el, adj: [{ node, len }] }
+    let nodes = [];
+    let edges = [];      // { a, b, len, line }
+    let root = null;
+
+    let startTime = 0;
+    let running = false;
+    let timerHandle = null;
+    let config = { depth: 3, children: 3, randomness: 25 };
+
+    // screen = world * z + (x, y)
+    let view = { z: 1, x: 0, y: 0 };
+
+    // ---------- Setup screen ----------
+    function totalNodes(depth, children) {
+      // root + children + children^2 + ... + children^depth
+      let total = 0, tier = 1;
+      for (let d = 0; d <= depth; d++) {
+        total += tier;
+        tier *= children;
+        if (total > 100000) return total; // stop the math running away
+      }
+      return total;
+    }
+
+    function updateSetupPreview() {
+      const depth = +depthInput.value;
+      const children = +childrenInput.value;
+      depthVal.textContent = depth;
+      childrenVal.textContent = children;
+      randomVal.textContent = `${randomInput.value}%`;
+
+      const count = totalNodes(depth, children);
+      const tooMany = count > MAX_NODES;
+
+      // Every rod meets at the root when depth is 1, and a 2-rod path bends
+      // rather than crosses - those boards can never tangle.
+      const cannotTangle = depth < 2 || (children === 1 && depth < 3);
+
+      nodeCountEl.textContent = tooMany
+        ? `Total nodes: ${count} - too many (max ${MAX_NODES})`
+        : cannotTangle
+          ? `Total nodes: ${count} - too small to tangle, solved on sight`
+          : `Total nodes: ${count}`;
+      nodeCountEl.classList.toggle('too-many', tooMany);
+      startBtn.disabled = tooMany;
+    }
+
+    depthInput.addEventListener('input', updateSetupPreview);
+    childrenInput.addEventListener('input', updateSetupPreview);
+    randomInput.addEventListener('input', updateSetupPreview);
+    updateSetupPreview();
+
+    // ---------- Graph building ----------
+    // The very first version of this game dropped every box at a random spot
+    // on screen and took whatever distance fell out as the rod length. At
+    // chaos 1 that is exactly what happens again.
+    function randomScreenLength(cw, ch) {
+      const x1 = Math.random() * cw, y1 = Math.random() * ch;
+      const x2 = Math.random() * cw, y2 = Math.random() * ch;
+      return Math.hypot(x2 - x1, y2 - y1);
+    }
+
+    function buildGraph(depth, children, randomness) {
+      nodes = [];
+      edges = [];
+      lastCount = -1;
+      world.querySelectorAll('.node').forEach(el => el.remove());
+      svgCanvas.innerHTML = '';
+
+      // Each tier's rods are shorter than the last, so subtrees have room to
+      // fan out. Paths (1 child) barely shrink; bushy trees shrink fast.
+      const decay = children === 1 ? 0.88 : 0.62;
+
+      let sum = 0;
+      for (let d = 0; d < depth; d++) sum += Math.pow(decay, d);
+
+      const span = 0.40 * Math.min(container.clientWidth, container.clientHeight);
+      let baseLen = span / Math.max(sum, 0.001);
+
+      // Never let the deepest rods collapse to nothing - the graph is allowed
+      // to outgrow the screen, that is what zoom out is for.
+      const shortest = baseLen * Math.pow(decay, Math.max(depth - 1, 0));
+      if (shortest < 26) baseLen *= 26 / Math.max(shortest, 0.001);
+
+      const opts = {
+        baseLen,
+        decay,
+        chaos: Math.min(1, Math.max(0, randomness / 100)),
+        cw: container.clientWidth,
+        ch: container.clientHeight
+      };
+
+      root = makeNode('node_main', 0, Math.min(34, Math.max(14, baseLen * 0.32)), true);
+      recursivespawning(0, root, children, depth, opts);
+
+      buildLines();
+      shuffle();
+    }
+
+    function makeNode(id, depth, r, isRoot) {
+      const el = document.createElement('div');
+      el.classList.add('node');
+      if (isRoot) el.classList.add('root');
+      el.style.width  = `${r * 2}px`;
+      el.style.height = `${r * 2}px`;
+      world.appendChild(el);
+
+      const node = { id, depth, x: 0, y: 0, r, el, adj: [] };
+      nodes.push(node);
+      makeElementDraggable(node);
+      return node;
+    }
+
+    function recursivespawning(currentDepth, parent, childrenCount, maxDepth, opts) {
+      if (currentDepth >= maxDepth) return;
+
+      // The orderly length for this tier. Node sizes key off this rather than
+      // the final rod length, so the hierarchy still reads at high chaos.
+      const tierLen = opts.baseLen * Math.pow(opts.decay, currentDepth);
+      const radius = Math.min(30, Math.max(9, tierLen * 0.28));
+
+      for (let i = 0; i < childrenCount; i++) {
+        const id = `node_${currentDepth}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+
+        // Blend the tidy tier length towards a pure "anywhere on screen"
+        // distance. 0 = every rod in this tier identical, 1 = full chaos.
+        const wild = randomScreenLength(opts.cw, opts.ch);
+        const len = Math.max(20, tierLen * (1 - opts.chaos) + wild * opts.chaos);
+
+        const child = makeNode(id, currentDepth + 1, Math.min(radius, len * 0.35), false);
+
+        edges.push({ a: parent, b: child, len, line: null });
+        parent.adj.push({ node: child, len });
+        child.adj.push({ node: parent, len });
+
+        recursivespawning(currentDepth + 1, child, childrenCount, maxDepth, opts);
+      }
+    }
+
+    function buildLines() {
+      edges.forEach(e => {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.classList.add('connection-line');
+        line.setAttribute('vector-effect', 'non-scaling-stroke');
+        svgCanvas.appendChild(line);
+        e.line = line;
+      });
+    }
+
+    // ---------- Layout ----------
+    // Fan the tree out from the root at random angles. Rod lengths are always
+    // respected, so the board starts legal - just horribly tangled.
+    function layoutRandomAngles() {
+      root.x = container.clientWidth / 2;
+      root.y = container.clientHeight / 2;
+
+      const visited = new Set([root]);
+      const stack = [root];
+
+      while (stack.length) {
+        const cur = stack.pop();
+        for (const link of cur.adj) {
+          const t = link.node;
+          if (visited.has(t)) continue;
+          visited.add(t);
+
+          const angle = Math.random() * Math.PI * 2;
+          t.x = cur.x + Math.cos(angle) * link.len;
+          t.y = cur.y + Math.sin(angle) * link.len;
+          stack.push(t);
+        }
+      }
+    }
+
+    function shuffle() {
+      // Reroll if we luck into an already-solved board.
+      let attempts = 0;
+      do {
+        layoutRandomAngles();
+        attempts++;
+      } while (attempts < 20 && edges.length > 1 && countCrossings().count === 0);
+
+      fitView();
+      render();
+    }
+
+    // ---------- Rigid rods ----------
+    // Walk out from the dragged node and pull every neighbour back to its
+    // rod length, keeping the direction it currently sits in.
+    function pullConnections(anchor) {
+      const visited = new Set([anchor]);
+      const stack = [anchor];
+
+      while (stack.length) {
+        const cur = stack.pop();
+        for (const link of cur.adj) {
+          const t = link.node;
+          if (visited.has(t)) continue;
+          visited.add(t);
+
+          let dx = t.x - cur.x;
+          let dy = t.y - cur.y;
+          let dist = Math.hypot(dx, dy);
+
+          if (dist < 1e-6) {          // exactly on top of each other - pick any direction
+            const a = Math.random() * Math.PI * 2;
+            dx = Math.cos(a); dy = Math.sin(a); dist = 1;
+          }
+
+          t.x = cur.x + (dx / dist) * link.len;
+          t.y = cur.y + (dy / dist) * link.len;
+          stack.push(t);
+        }
+      }
+    }
+
+    // ---------- Crossing detection ----------
+    function orient(ax, ay, bx, by, cx, cy) {
+      const v = (by - ay) * (cx - bx) - (bx - ax) * (cy - by);
+      if (Math.abs(v) < 1e-9) return 0;
+      return v > 0 ? 1 : 2;
+    }
+
+    function onSeg(px, py, qx, qy, rx, ry) {
+      return Math.min(px, qx) - 1e-9 <= rx && rx <= Math.max(px, qx) + 1e-9 &&
+             Math.min(py, qy) - 1e-9 <= ry && ry <= Math.max(py, qy) + 1e-9;
+    }
+
+    function segmentsCross(e1, e2) {
+      // Rods sharing a node always touch, so they never count.
+      if (e1.a === e2.a || e1.a === e2.b || e1.b === e2.a || e1.b === e2.b) return false;
+
+      const p1 = e1.a, q1 = e1.b, p2 = e2.a, q2 = e2.b;
+      const o1 = orient(p1.x, p1.y, q1.x, q1.y, p2.x, p2.y);
+      const o2 = orient(p1.x, p1.y, q1.x, q1.y, q2.x, q2.y);
+      const o3 = orient(p2.x, p2.y, q2.x, q2.y, p1.x, p1.y);
+      const o4 = orient(p2.x, p2.y, q2.x, q2.y, q1.x, q1.y);
+
+      if (o1 !== o2 && o3 !== o4) return true;
+
+      // Collinear overlap counts as a crossing too.
+      if (o1 === 0 && onSeg(p1.x, p1.y, q1.x, q1.y, p2.x, p2.y)) return true;
+      if (o2 === 0 && onSeg(p1.x, p1.y, q1.x, q1.y, q2.x, q2.y)) return true;
+      if (o3 === 0 && onSeg(p2.x, p2.y, q2.x, q2.y, p1.x, p1.y)) return true;
+      if (o4 === 0 && onSeg(p2.x, p2.y, q2.x, q2.y, q1.x, q1.y)) return true;
+
+      return false;
+    }
+
+    function countCrossings() {
+      const bad = new Set();
+      let count = 0;
+      for (let i = 0; i < edges.length; i++) {
+        for (let j = i + 1; j < edges.length; j++) {
+          if (segmentsCross(edges[i], edges[j])) {
+            count++;
+            bad.add(i);
+            bad.add(j);
+          }
+        }
+      }
+      return { count, bad };
+    }
+
+    // ---------- Drawing ----------
+    let lastCount = -1;
+
+    function render() {
+      nodes.forEach(n => {
+        n.el.style.left = `${n.x - n.r}px`;
+        n.el.style.top  = `${n.y - n.r}px`;
+      });
+      return drawConnections();
+    }
+
+    function drawConnections() {
+      const { count, bad } = countCrossings();
+
+      edges.forEach((e, i) => {
+        const line = e.line;
+        line.setAttribute('x1', e.a.x);
+        line.setAttribute('y1', e.a.y);
+        line.setAttribute('x2', e.b.x);
+        line.setAttribute('y2', e.b.y);
+        line.classList.toggle('crossed', bad.has(i));
+      });
+
+      if (count !== lastCount) {
+        crossingsEl.textContent = count;
+        crossingsEl.className = count === 0 ? 'clean' : 'dirty';
+        lastCount = count;
+      }
+      return count;
+    }
+
+    let frameQueued = false;
+    function requestRender() {
+      if (frameQueued) return;
+      frameQueued = true;
+      requestAnimationFrame(() => {
+        frameQueued = false;
+        render();
+      });
+    }
+
+    // ---------- View (zoom / pan) ----------
+    function applyView() {
+      world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
+      zoomLevelEl.textContent = `${Math.round(view.z * 100)}%`;
+    }
+
+    function screenToWorld(clientX, clientY) {
+      const rect = container.getBoundingClientRect();
+      return {
+        x: (clientX - rect.left - view.x) / view.z,
+        y: (clientY - rect.top  - view.y) / view.z
+      };
+    }
+
+    function zoomAt(clientX, clientY, factor) {
+      const rect = container.getBoundingClientRect();
+      const before = screenToWorld(clientX, clientY);
+
+      view.z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.z * factor));
+      view.x = (clientX - rect.left) - before.x * view.z;
+      view.y = (clientY - rect.top)  - before.y * view.z;
+      applyView();
+    }
+
+    function zoomCentered(factor) {
+      const rect = container.getBoundingClientRect();
+      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+    }
+
+    function fitView() {
+      if (!nodes.length) return;
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      nodes.forEach(n => {
+        minX = Math.min(minX, n.x - n.r);
+        minY = Math.min(minY, n.y - n.r);
+        maxX = Math.max(maxX, n.x + n.r);
+        maxY = Math.max(maxY, n.y + n.r);
+      });
+
+      const pad = 30;
+      const bw = Math.max(maxX - minX, 1);
+      const bh = Math.max(maxY - minY, 1);
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+
+      view.z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
+        Math.min((cw - pad * 2) / bw, (ch - pad * 2) / bh)));
+      view.x = cw / 2 - ((minX + maxX) / 2) * view.z;
+      view.y = ch / 2 - ((minY + maxY) / 2) * view.z;
+      applyView();
+    }
+
+    container.addEventListener('wheel', e => {
+      e.preventDefault();
+      zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+    }, { passive: false });
+
+    document.getElementById('zoom-in-btn').addEventListener('click', () => zoomCentered(1.25));
+    document.getElementById('zoom-out-btn').addEventListener('click', () => zoomCentered(1 / 1.25));
+    document.getElementById('fit-btn').addEventListener('click', fitView);
+
+    // Drag the empty background to pan.
+    container.addEventListener('pointerdown', e => {
+      if (e.target.closest('.node')) return;
+
+      const startX = e.clientX, startY = e.clientY;
+      const originX = view.x, originY = view.y;
+      container.classList.add('panning');
+      container.setPointerCapture(e.pointerId);
+
+      function panMove(ev) {
+        view.x = originX + (ev.clientX - startX);
+        view.y = originY + (ev.clientY - startY);
+        applyView();
+      }
+      function panEnd() {
+        container.classList.remove('panning');
+        container.removeEventListener('pointermove', panMove);
+        container.removeEventListener('pointerup', panEnd);
+        container.removeEventListener('pointercancel', panEnd);
+      }
+
+      container.addEventListener('pointermove', panMove);
+      container.addEventListener('pointerup', panEnd);
+      container.addEventListener('pointercancel', panEnd);
+    });
+
+    // ---------- Dragging a node ----------
+    function makeElementDraggable(node) {
+      let offsetX = 0;
+      let offsetY = 0;
+
+      node.el.addEventListener('pointerdown', dragStart);
+
+      function dragStart(e) {
+        if (!running) return;
+        e.preventDefault();
+        e.stopPropagation();          // do not start a pan as well
+
+        node.el.setPointerCapture(e.pointerId);
+        node.el.classList.add('dragging');
+
+        const p = screenToWorld(e.clientX, e.clientY);
+        offsetX = p.x - node.x;
+        offsetY = p.y - node.y;
+
+        node.el.addEventListener('pointermove', dragging);
+        node.el.addEventListener('pointerup', dragEnd);
+        node.el.addEventListener('pointercancel', dragEnd);
+      }
+
+      function dragging(e) {
+        const p = screenToWorld(e.clientX, e.clientY);
+        node.x = p.x - offsetX;
+        node.y = p.y - offsetY;
+
+        pullConnections(node);        // rigid rods drag everything else along
+        requestRender();
+      }
+
+      function dragEnd() {
+        node.el.classList.remove('dragging');
+        node.el.removeEventListener('pointermove', dragging);
+        node.el.removeEventListener('pointerup', dragEnd);
+        node.el.removeEventListener('pointercancel', dragEnd);
+        render();
+      }
+    }
+
+    // ---------- Timer ----------
+    function formatTime(ms) {
+      const s = ms / 1000;
+      if (s < 60) return `${s.toFixed(1)}s`;
+      const m = Math.floor(s / 60);
+      return `${m}m ${(s - m * 60).toFixed(1)}s`;
+    }
+
+    function startTimer() {
+      startTime = performance.now();
+      running = true;
+      clearInterval(timerHandle);
+      timerHandle = setInterval(() => {
+        timerEl.textContent = formatTime(performance.now() - startTime);
+      }, 100);
+    }
+
+    function stopTimer() {
+      running = false;
+      clearInterval(timerHandle);
+      return performance.now() - startTime;
+    }
+
+    // ---------- Best times ----------
+    function bestKey() {
+      return `untangle_best_${config.depth}_${config.children}_${config.randomness}`;
+    }
+
+    function recordTime(ms) {
+      try {
+        const prev = localStorage.getItem(bestKey());
+        if (prev === null || ms < +prev) {
+          localStorage.setItem(bestKey(), String(ms));
+          return { ms, isNew: true };
+        }
+        return { ms: +prev, isNew: false };
+      } catch (err) {
+        return null; // localStorage blocked - skip the record keeping
+      }
+    }
+
+    // ---------- Toast ----------
+    let toastHandle = null;
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      clearTimeout(toastHandle);
+      toastHandle = setTimeout(() => toastEl.classList.remove('show'), 2400);
+    }
+
+    // ---------- Buttons ----------
+    startBtn.addEventListener('click', () => {
+      config = {
+        depth: +depthInput.value,
+        children: +childrenInput.value,
+        randomness: +randomInput.value
+      };
+      setupOverlay.classList.add('hidden');
+      winOverlay.classList.add('hidden');
+      lastCount = -1;
+      buildGraph(config.depth, config.children, config.randomness);
+      timerEl.textContent = '0.0s';
+      startTimer();
+    });
+
+    document.getElementById('shuffle-btn').addEventListener('click', () => {
+      if (nodes.length) shuffle();
+    });
+
+    document.getElementById('setup-btn').addEventListener('click', () => {
+      stopTimer();
+      winOverlay.classList.add('hidden');
+      setupOverlay.classList.remove('hidden');
+    });
+
+    document.getElementById('again-btn').addEventListener('click', () => {
+      winOverlay.classList.add('hidden');
+      setupOverlay.classList.remove('hidden');
+    });
+
+    document.getElementById('submit-btn').addEventListener('click', () => {
+      if (!running) {
+        toast('Press Start first.');
+        return;
+      }
+
+      const count = render();
+      if (count > 0) {
+        toast(`${count} crossing${count === 1 ? '' : 's'} left - see the red rods.`);
+        return;
+      }
+
+      const elapsed = stopTimer();
+      timerEl.textContent = formatTime(elapsed);
+      document.getElementById('final-time').textContent = formatTime(elapsed);
+
+      const best = recordTime(elapsed);
+      const label = `depth ${config.depth}, ${config.children} per node, ${config.randomness}% random`;
+      document.getElementById('best-time').textContent = best
+        ? (best.isNew ? `New best for ${label}!` : `Best for ${label}: ${formatTime(best.ms)}`)
+        : label;
+
+      winOverlay.classList.remove('hidden');
+    });
+
+    applyView();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <p>Please enter your phone number:</p>
+    <p id="phone-number"></p>
+    <div>
+        <button onclick="addTwo()">Add 2</button>
+        <button onclick="multiplyByTwo()">Multiply by 2</button>
+        <button onclick="divideByTwo()">Half</button>
+        <button onclick="square()">Square</button>
+    </div>
+    <button onclick="reset()">Reset</button>
+    <script>
+        let phoneNumber = 0;
+
+        function updateDisplay() {
+            document.getElementById('phone-number').textContent = phoneNumber;
+        }
+
+        function addTwo() {
+            phoneNumber += 2;
+            updateDisplay();
+        }
+
+        function multiplyByTwo() {
+            phoneNumber *= 2;
+            updateDisplay();
+        }
+
+        function divideByTwo() {
+            phoneNumber /= 2;
+            updateDisplay();
+        }
+
+        function square() {
+            phoneNumber *= phoneNumber;
+            updateDisplay();
+        }
+
+        function reset() {
+            phoneNumber = 0;
+            updateDisplay();
+        }
+        // Initialize display
+        updateDisplay();
+    </script>
+</body>
+</html>
